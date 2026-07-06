@@ -25,7 +25,7 @@ interface ObjectsViewProps {
 
 export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onReload, statusFilter, onClearFilter }: ObjectsViewProps) {
   const [search, setSearch] = useState<string>(
-    () => sessionStorage.getItem('objectsSearch') ?? ''
+    () => localStorage.getItem('objectsSearch') ?? ''
   );
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -42,7 +42,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
     const params = new URLSearchParams(window.location.search);
     const s = params.get('status');
     if (s && valid.includes(s)) return s;
-    const stored = sessionStorage.getItem('objectsLocalStatusFilter');
+    const stored = localStorage.getItem('objectsLocalStatusFilter');
     return stored && valid.includes(stored) ? stored : null;
   });
 
@@ -51,10 +51,10 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
     const params = new URLSearchParams(window.location.search);
     if (localStatusFilter) {
       params.set('status', localStatusFilter);
-      sessionStorage.setItem('objectsLocalStatusFilter', localStatusFilter);
+      localStorage.setItem('objectsLocalStatusFilter', localStatusFilter);
     } else {
       params.delete('status');
-      sessionStorage.removeItem('objectsLocalStatusFilter');
+      localStorage.removeItem('objectsLocalStatusFilter');
     }
     const newSearch = params.toString();
     const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
@@ -206,8 +206,8 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
           onChange={e => {
             const v = e.target.value;
             setSearch(v);
-            if (v) sessionStorage.setItem('objectsSearch', v);
-            else sessionStorage.removeItem('objectsSearch');
+            if (v) localStorage.setItem('objectsSearch', v);
+            else localStorage.removeItem('objectsSearch');
           }}
           placeholder="Поиск по УИН, названию, округу или руководителю..."
           className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition shadow-sm"
