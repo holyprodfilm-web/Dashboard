@@ -827,7 +827,7 @@ function PaymentScheduleTab({ data, onEdit, canEdit }: {
       if (!r.payment_date) { noDate.push(r); return; }
       const d = new Date(r.payment_date); d.setHours(0, 0, 0, 0);
       const diff = d.getTime() - today.getTime();
-      if (diff < 0) overdue.push(r);
+      if (diff <= 0) overdue.push(r);
       else if (diff <= SOON_MS) soon.push(r);
       else future.push(r);
     });
