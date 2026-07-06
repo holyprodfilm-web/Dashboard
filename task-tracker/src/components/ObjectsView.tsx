@@ -34,26 +34,41 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
   const [deleteDialogDetailAddress, setDeleteDialogDetailAddress] = useState<Address | null>(null);
   const [deleteDialogFocusTaskId, setDeleteDialogFocusTaskId] = useState<number | null>(null);
   // Local health-badge filter (independent of the external statusFilter prop)
-  // Initialise from URL query param so it survives tab switches
+  // Initialise from URL query param (direct navigation) or sessionStorage (returning from another view)
   const [localStatusFilter, setLocalStatusFilter] = useState<string | null>(() => {
+    const valid = ['overdue', 'in_progress', 'new', 'completed'];
     const params = new URLSearchParams(window.location.search);
     const s = params.get('status');
-    const valid = ['overdue', 'in_progress', 'new', 'completed'];
-    return s && valid.includes(s) ? s : null;
+    if (s && valid.includes(s)) return s;
+    const stored = sessionStorage.getItem('objectsLocalStatusFilter');
+    return stored && valid.includes(stored) ? stored : null;
   });
 
-  // Keep URL in sync with the active filter
+  // Keep URL and sessionStorage in sync with the active filter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (localStatusFilter) {
       params.set('status', localStatusFilter);
+      sessionStorage.setItem('objectsLocalStatusFilter', localStatusFilter);
     } else {
       params.delete('status');
+      sessionStorage.removeItem('objectsLocalStatusFilter');
     }
     const newSearch = params.toString();
     const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
     window.history.replaceState(null, '', newUrl);
   }, [localStatusFilter]);
+
+  // Clear the ?status= param from the URL when leaving the objects view
+  useEffect(() => {
+    return () => {
+      const params = new URLSearchParams(window.location.search);
+      params.delete('status');
+      const newSearch = params.toString();
+      const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
+      window.history.replaceState(null, '', newUrl);
+    };
+  }, []);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
