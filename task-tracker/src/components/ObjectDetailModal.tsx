@@ -87,7 +87,7 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
-                <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-mono font-semibold">
+                <span className="px-2 py-1 bg-teal-50 text-teal-700 rounded-lg text-xs font-mono font-semibold">
                   УИН: {uin}
                 </span>
                 {address["Тип объекта"] && (
@@ -133,7 +133,7 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
               <GitBranch size={15} />
               Граф связей
               {links.length > 0 && (
-                <span className="text-xs px-1.5 py-0.5 bg-blue-100 rounded-full text-blue-600">{links.length}</span>
+                <span className="text-xs px-1.5 py-0.5 bg-teal-100 rounded-full text-teal-600">{links.length}</span>
               )}
             </button>
           </nav>
@@ -206,7 +206,7 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
                                 ref={(el) => { taskRefs.current[task.id] = el; }}
                                 className={`p-4 rounded-xl border transition-all duration-700 ${
                                   highlightedTaskId === task.id
-                                    ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-300 shadow-md'
+                                    ? 'bg-teal-50 border-teal-400 ring-2 ring-teal-300 shadow-md'
                                     : 'bg-slate-50 border-slate-100'
                                 }`}
                               >
@@ -237,8 +237,8 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
                                               key={link.id}
                                               className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg ${
                                                 isParent
-                                                  ? 'bg-blue-50 text-blue-700'
-                                                  : 'bg-indigo-50 text-indigo-700'
+                                                  ? 'bg-teal-50 text-teal-700'
+                                                  : 'bg-teal-50 text-teal-700'
                                               }`}
                                             >
                                               <Link2 size={11} />
@@ -251,7 +251,7 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
                                               {canDelete && (
                                                 <button
                                                   onClick={(e) => deleteLink(link.id, e)}
-                                                  className="ml-1 opacity-50 hover:opacity-100 hover:text-red-500 transition"
+                                                  className="ml-1 opacity-50 hover:opacity-100 hover:text-[#E93A58] transition"
                                                 >
                                                   <X size={10} />
                                                 </button>
@@ -278,7 +278,7 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
           {tab === 'graph' && (
             loadingLinks ? (
               <div className="flex justify-center py-12">
-                <Loader2 className="animate-spin text-blue-500" size={28} />
+                <Loader2 className="animate-spin text-teal-500" size={28} />
               </div>
             ) : (
               <TaskGraph tasks={objectTasks} links={links} meetings={allMeetings} />

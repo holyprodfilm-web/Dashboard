@@ -18,8 +18,8 @@ function formatSize(bytes?: number) {
 
 function FileIcon({ name }: { name: string }) {
   const ext = name.split('.').pop()?.toLowerCase();
-  if (ext === 'pdf') return <FileText size={18} className="text-red-500 shrink-0" />;
-  return <File size={18} className="text-blue-500 shrink-0" />;
+  if (ext === 'pdf') return <FileText size={18} className="text-[#E93A58] shrink-0" />;
+  return <File size={18} className="text-teal-500 shrink-0" />;
 }
 
 interface Props {
@@ -131,7 +131,7 @@ export default function MeetingAttachments({ meetingId }: Props) {
           <label className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl cursor-pointer transition
             ${uploading
               ? 'bg-slate-100 text-slate-400 pointer-events-none'
-              : 'bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200'}`}>
+              : 'bg-teal-50 text-teal-600 hover:bg-teal-100 border border-teal-200'}`}>
             {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
             {uploading ? 'Загрузка...' : 'Загрузить файл'}
             <input
@@ -147,7 +147,7 @@ export default function MeetingAttachments({ meetingId }: Props) {
       </div>
 
       {error && (
-        <div className="mb-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</div>
+        <div className="mb-3 text-sm text-[#E93A58] bg-[#FFF0F3] rounded-lg px-3 py-2">{error}</div>
       )}
 
       {attachments.length === 0 ? (
@@ -170,7 +170,7 @@ export default function MeetingAttachments({ meetingId }: Props) {
               <button
                 onClick={() => handleOpen(att)}
                 disabled={opening === att.id}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-600 hover:bg-teal-50 rounded-lg transition"
                 title="Открыть / скачать"
               >
                 {opening === att.id ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
@@ -179,7 +179,7 @@ export default function MeetingAttachments({ meetingId }: Props) {
               {canDelete && (
                 <button
                   onClick={() => handleDelete(att)}
-                  className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                  className="p-1.5 text-slate-300 hover:text-[#E93A58] hover:bg-[#FFF0F3] rounded-lg transition opacity-0 group-hover:opacity-100"
                   title="Удалить"
                 >
                   <Trash2 size={14} />

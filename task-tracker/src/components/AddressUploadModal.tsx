@@ -147,7 +147,7 @@ export default function AddressUploadModal({ onClose, onUploaded }: AddressUploa
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Upload size={20} className="text-blue-600" />
+            <Upload size={20} className="text-teal-600" />
             Загрузка справочника объектов
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition">
@@ -157,11 +157,11 @@ export default function AddressUploadModal({ onClose, onUploaded }: AddressUploa
 
         <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
           {/* Format hint */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+          <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 text-sm text-teal-800">
             <p className="font-semibold mb-1">Формат CSV-файла</p>
-            <p>Обязательные колонки: <code className="bg-blue-100 px-1 rounded">Код УИН</code>, <code className="bg-blue-100 px-1 rounded">Наименование объекта</code>, <code className="bg-blue-100 px-1 rounded">Городской округ</code></p>
-            <p className="mt-1">Необязательные: <code className="bg-blue-100 px-1 rounded">Руководитель проекта</code>, <code className="bg-blue-100 px-1 rounded">Тип объекта</code>, <code className="bg-blue-100 px-1 rounded">Год реализации</code></p>
-            <p className="mt-1 text-blue-700">Разделитель: запятая или точка с запятой. Кодировка: UTF-8.</p>
+            <p>Обязательные колонки: <code className="bg-teal-100 px-1 rounded">Код УИН</code>, <code className="bg-teal-100 px-1 rounded">Наименование объекта</code>, <code className="bg-teal-100 px-1 rounded">Городской округ</code></p>
+            <p className="mt-1">Необязательные: <code className="bg-teal-100 px-1 rounded">Руководитель проекта</code>, <code className="bg-teal-100 px-1 rounded">Тип объекта</code>, <code className="bg-teal-100 px-1 rounded">Год реализации</code></p>
+            <p className="mt-1 text-teal-700">Разделитель: запятая или точка с запятой. Кодировка: UTF-8.</p>
           </div>
 
           {/* Drop zone */}
@@ -170,7 +170,7 @@ export default function AddressUploadModal({ onClose, onUploaded }: AddressUploa
               onDrop={handleDrop}
               onDragOver={e => e.preventDefault()}
               onClick={() => fileRef.current?.click()}
-              className="border-2 border-dashed border-slate-300 rounded-xl p-10 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition"
+              className="border-2 border-dashed border-slate-300 rounded-xl p-10 text-center cursor-pointer hover:border-teal-400 hover:bg-teal-50/50 transition"
             >
               <FileText className="mx-auto mb-3 text-slate-400" size={36} />
               <p className="font-medium text-slate-700">Перетащите CSV-файл сюда или нажмите для выбора</p>
@@ -186,7 +186,7 @@ export default function AddressUploadModal({ onClose, onUploaded }: AddressUploa
           )}
 
           {parseError && (
-            <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+            <div className="flex items-start gap-2 p-3 bg-[#FFF0F3] border border-[#FFB3BF] rounded-xl text-[#c42d49] text-sm">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <span>{parseError}</span>
             </div>
@@ -197,13 +197,13 @@ export default function AddressUploadModal({ onClose, onUploaded }: AddressUploa
             <>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <FileText size={15} className="text-blue-500" />
+                  <FileText size={15} className="text-teal-500" />
                   <span className="font-medium">{fileName}</span>
                   <span className="text-slate-400">— {preview.length} объектов</span>
                 </div>
                 <button
                   onClick={() => { setPreview(null); setFileName(''); }}
-                  className="text-xs text-slate-400 hover:text-red-500 transition flex items-center gap-1"
+                  className="text-xs text-slate-400 hover:text-[#E93A58] transition flex items-center gap-1"
                 >
                   <X size={13} /> Сбросить
                 </button>
@@ -223,7 +223,7 @@ export default function AddressUploadModal({ onClose, onUploaded }: AddressUploa
                     <tbody className="divide-y divide-slate-100">
                       {preview.slice(0, 50).map((a, i) => (
                         <tr key={i} className="hover:bg-slate-50">
-                          <td className="px-3 py-1.5 font-mono text-blue-700">{a["Код УИН"]}</td>
+                          <td className="px-3 py-1.5 font-mono text-teal-700">{a["Код УИН"]}</td>
                           <td className="px-3 py-1.5 text-slate-800">{a["Наименование объекта"]}</td>
                           <td className="px-3 py-1.5 text-slate-600">{a["Городской округ"]}</td>
                           <td className="px-3 py-1.5 text-slate-500">{a["Руководитель проекта"] || '—'}</td>
@@ -252,7 +252,7 @@ export default function AddressUploadModal({ onClose, onUploaded }: AddressUploa
               </label>
 
               {uploadError && (
-                <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                <div className="flex items-start gap-2 p-3 bg-[#FFF0F3] border border-[#FFB3BF] rounded-xl text-[#c42d49] text-sm">
                   <AlertCircle size={16} className="shrink-0 mt-0.5" />
                   <span>{uploadError}</span>
                 </div>
@@ -282,7 +282,7 @@ export default function AddressUploadModal({ onClose, onUploaded }: AddressUploa
             <button
               onClick={handleUpload}
               disabled={uploading}
-              className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition text-sm font-medium disabled:opacity-60"
+              className="flex items-center gap-2 px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl transition text-sm font-medium disabled:opacity-60"
             >
               {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
               {uploading ? 'Загрузка...' : `Загрузить ${preview.length} объектов`}

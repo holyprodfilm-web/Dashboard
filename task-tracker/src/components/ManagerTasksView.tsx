@@ -17,7 +17,7 @@ const STATUS_COLORS: Record<TaskStatus, string> = {
   new: 'bg-slate-100 text-slate-700',
   in_progress: 'bg-amber-100 text-amber-700',
   completed: 'bg-emerald-100 text-emerald-700',
-  overdue: 'bg-red-100 text-red-700',
+  overdue: 'bg-[#FFD6DC] text-[#c42d49]',
 };
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -72,7 +72,7 @@ export default function ManagerTasksView({ managerName, meetings, tasks, address
       <div className="flex items-center gap-4 mb-6">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+          className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition"
         >
           <ArrowLeft size={18} /> Назад к дашборду
         </button>
@@ -86,7 +86,7 @@ export default function ManagerTasksView({ managerName, meetings, tasks, address
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
-            <FileText size={20} className="text-blue-600" />
+            <FileText size={20} className="text-teal-600" />
             <span className="text-sm text-slate-500">Всего</span>
           </div>
           <div className="text-3xl font-bold text-slate-900">{managerData.total}</div>
@@ -107,10 +107,10 @@ export default function ManagerTasksView({ managerName, meetings, tasks, address
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle size={20} className="text-red-600" />
+            <AlertTriangle size={20} className="text-[#E93A58]" />
             <span className="text-sm text-slate-500">Просрочено</span>
           </div>
-          <div className="text-3xl font-bold text-red-600">{managerData.overdue}</div>
+          <div className="text-3xl font-bold text-[#E93A58]">{managerData.overdue}</div>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center">
           <div className="text-sm text-slate-500 mb-1">Прогресс</div>
@@ -145,7 +145,7 @@ export default function ManagerTasksView({ managerName, meetings, tasks, address
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2">
                 <div
-                  className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all"
+                  className="bg-gradient-to-r from-[#E97386] to-[#EFA566] h-2 rounded-full transition-all"
                   style={{ width: `${pct}%` }}
                 ></div>
               </div>

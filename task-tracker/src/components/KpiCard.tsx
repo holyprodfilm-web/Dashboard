@@ -10,8 +10,8 @@ interface KpiCardProps {
 
 const colorClasses = {
   blue: {
-    bg: 'bg-blue-50',
-    text: 'text-blue-600',
+    bg: 'bg-teal-50',
+    text: 'text-teal-600',
     hover: '',
     ring: '',
   },
@@ -28,10 +28,10 @@ const colorClasses = {
     ring: 'active:ring-2 active:ring-emerald-300',
   },
   red: {
-    bg: 'bg-red-50',
-    text: 'text-red-600',
-    hover: 'hover:border-red-300 hover:shadow-md hover:bg-red-50/60 cursor-pointer',
-    ring: 'active:ring-2 active:ring-red-300',
+    bg: 'bg-[#FFF0F3]',
+    text: 'text-[#E93A58]',
+    hover: 'hover:border-[#FF8099] hover:shadow-md hover:bg-[#FFF0F3]/60 cursor-pointer',
+    ring: 'active:ring-2 active:ring-[#FF8099]',
   },
 };
 

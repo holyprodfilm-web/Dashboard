@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AuthProvider, useAuth } from './lib/AuthContext';
-import { Home, Target, Loader2, LogOut, AlertCircle } from 'lucide-react';
+import { Home, Target, Loader2, LogOut, AlertCircle, UserCircle } from 'lucide-react';
+import UserProfileModal from './components/UserProfileModal';
 import type { View, Meeting, Task, Address, Profile } from './types';
 import { ROLE_LABELS, ROLE_COLORS } from './types';
 import { supabase } from './lib/supabase';
@@ -26,6 +27,7 @@ function AppContent() {
   const [selectedMeetingId, setSelectedMeetingId] = useState<number | null>(null);
   const [selectedManager, setSelectedManager] = useState<string>('');
   const [objectsStatusFilter, setObjectsStatusFilter] = useState<'in_work' | 'completed' | 'overdue' | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   const loadAllData = useCallback(async () => {
     if (!user) return;
@@ -71,7 +73,7 @@ function AppContent() {
   if (loading || (user && dataLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="animate-spin text-blue-600" size={40} />
+        <Loader2 className="animate-spin text-teal-600" size={40} />
       </div>
     );
   }
@@ -89,7 +91,7 @@ function AppContent() {
               className="flex items-center gap-3 cursor-pointer"
               onClick={() => setView('home')}
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <div className="w-10 h-10 bg-gradient-to-br from-[#E97386] to-[#EFA566] rounded-xl flex items-center justify-center shadow-lg shadow-[#E97386]/20">
                 <Target className="text-white" size={20} />
               </div>
               <div>
@@ -103,7 +105,7 @@ function AppContent() {
               {view !== 'home' && (
                 <button
                   onClick={() => setView('home')}
-                  className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition font-medium text-sm"
+                  className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition font-medium text-sm"
                 >
                   <Home size={18} /> На главную
                 </button>
@@ -118,7 +120,7 @@ function AppContent() {
                 </div>
                 <button
                   onClick={signOut}
-                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                  className="p-2 text-slate-400 hover:text-[#E93A58] hover:bg-[#FFF0F3] rounded-lg transition"
                   title="Выйти"
                 >
                   <LogOut size={20} />
@@ -139,12 +141,12 @@ function AppContent() {
           }}
         />
         {dataError && (
-          <div className="mb-6 flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+          <div className="mb-6 flex items-center gap-3 p-4 bg-[#FFF0F3] border border-[#FFB3BF] rounded-xl text-[#c42d49] text-sm">
             <AlertCircle size={18} className="shrink-0" />
             <span>Ошибка загрузки данных: {dataError}</span>
             <button
               onClick={loadAllData}
-              className="ml-auto px-3 py-1 bg-red-100 hover:bg-red-200 rounded-lg text-xs font-medium transition"
+              className="ml-auto px-3 py-1 bg-[#FFD6DC] hover:bg-[#FFB3BF] rounded-lg text-xs font-medium transition"
             >
               Повторить
             </button>
@@ -206,6 +208,9 @@ function AppContent() {
         )}
         {view === 'users' && profile?.role === 'admin' && (
           <UsersView profiles={profiles} onReload={loadAllData} />
+        )}
+        {showProfile && (
+          <UserProfileModal onClose={() => setShowProfile(false)} />
         )}
         {view === 'detail' && selectedMeetingId && (
           <MeetingDetailView

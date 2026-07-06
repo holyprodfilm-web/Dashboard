@@ -62,7 +62,7 @@ export default function CreateTaskModal({ meetingId, availableObjects, onClose, 
             <select 
               value={objectUin} 
               onChange={e => setObjectUin(e.target.value)} 
-              className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none"
             >
               <option value="">Выберите объект из протокола...</option>
               {availableObjects.map((a) => (
@@ -79,7 +79,7 @@ export default function CreateTaskModal({ meetingId, availableObjects, onClose, 
               value={responsible} 
               onChange={e => setResponsible(e.target.value)} 
               placeholder="Иванов И.И." 
-              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
+              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
             />
           </div>
 
@@ -88,7 +88,7 @@ export default function CreateTaskModal({ meetingId, availableObjects, onClose, 
             <select 
               value={responsibleOrg} 
               onChange={e => setResponsibleOrg(e.target.value)} 
-              className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none"
             >
               <option value="">Выберите организацию...</option>
               {ORGANIZATIONS.map(org => (
@@ -103,7 +103,7 @@ export default function CreateTaskModal({ meetingId, availableObjects, onClose, 
               value={customOrg} 
               onChange={e => setCustomOrg(e.target.value)} 
               placeholder="Введите название сторонней организации *" 
-              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none"
               autoFocus
             />
           )}
@@ -115,7 +115,7 @@ export default function CreateTaskModal({ meetingId, availableObjects, onClose, 
               onChange={e => setDescription(e.target.value)} 
               placeholder="Описание поручения..." 
               rows={3}
-              className="w-full p-3 border border-slate-200 rounded-xl resize-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
+              className="w-full p-3 border border-slate-200 rounded-xl resize-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
             />
           </div>
 
@@ -125,7 +125,7 @@ export default function CreateTaskModal({ meetingId, availableObjects, onClose, 
               type="date" 
               value={deadline} 
               onChange={e => setDeadline(e.target.value)} 
-              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
+              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
             />
           </div>
 
@@ -136,7 +136,7 @@ export default function CreateTaskModal({ meetingId, availableObjects, onClose, 
             <button 
               onClick={handleCreate} 
               disabled={!objectUin || !responsible || !description || !deadline || (!responsibleOrg && !customOrg) || saving} 
-              className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 transition flex items-center gap-2"
+              className="px-5 py-2.5 bg-gradient-to-r from-[#E97386] to-[#EFA566] text-white rounded-xl hover:from-[#d4607a] hover:to-[#e0925a] disabled:opacity-50 transition flex items-center gap-2"
             >
               {saving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />} Создать
             </button>

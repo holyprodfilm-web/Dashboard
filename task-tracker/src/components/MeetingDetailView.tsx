@@ -86,7 +86,7 @@ export default function MeetingDetailView({
 
   if (!meeting) return (
     <div className="flex justify-center py-20">
-      <Loader2 className="animate-spin text-blue-600" size={32} />
+      <Loader2 className="animate-spin text-teal-600" size={32} />
     </div>
   );
 
@@ -122,7 +122,7 @@ export default function MeetingDetailView({
             {canCreate && (
               <button
                 onClick={() => setShowTaskModal(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-md text-sm"
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#E97386] to-[#EFA566] text-white rounded-xl shadow-md text-sm"
               >
                 <Plus size={16} /> Новое поручение
               </button>
@@ -147,7 +147,7 @@ export default function MeetingDetailView({
               <div className="flex flex-col md:flex-row justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-mono">
+                    <span className="px-2 py-1 bg-teal-50 text-teal-700 rounded-lg text-xs font-mono">
                       УИН: {task.object_uin}
                     </span>
                     <span className="text-sm font-medium text-slate-700">{addr?.["Наименование объекта"]}</span>
@@ -156,7 +156,7 @@ export default function MeetingDetailView({
                   <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-500">
                     <span className="flex items-center gap-1.5"><User size={14} /> {task.responsible}</span>
                     {task.responsible_org && (
-                      <span className="flex items-center gap-1.5 text-indigo-600 font-medium">
+                      <span className="flex items-center gap-1.5 text-teal-600 font-medium">
                         <Building2 size={14} /> {task.responsible_org}
                       </span>
                     )}
@@ -170,13 +170,13 @@ export default function MeetingDetailView({
                         const other = getLinkedTask(link, task.id);
                         if (!other) return null;
                         return (
-                          <div key={link.id} className="flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded-lg border border-blue-100">
+                          <div key={link.id} className="flex items-center gap-1 text-xs px-2 py-1 bg-teal-50 text-teal-600 rounded-lg border border-blue-100">
                             <Link2 size={10} />
                             <span>→ #{other.id}: {other.description.slice(0, 35)}{other.description.length > 35 ? '…' : ''}</span>
                             {(canEdit || canDelete) && (
                               <button
                                 onClick={(e) => deleteLink(link.id, e)}
-                                className="ml-1 text-blue-300 hover:text-red-500 transition"
+                                className="ml-1 text-teal-300 hover:text-[#E93A58] transition"
                                 title="Удалить связь"
                               >
                                 <X size={10} />
@@ -208,7 +208,7 @@ export default function MeetingDetailView({
                   {canCreate && sameObjectTasks.length > 0 && (
                     <button
                       onClick={() => setLinkTargetTask(task)}
-                      className="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition"
+                      className="p-2 text-slate-300 hover:text-teal-500 hover:bg-teal-50 rounded-lg transition"
                       title="Добавить связь с другим поручением"
                     >
                       <Link2 size={16} />
@@ -217,7 +217,7 @@ export default function MeetingDetailView({
                   {canDelete && (
                     <button
                       onClick={() => deleteTask(task.id)}
-                      className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                      className="p-2 text-slate-300 hover:text-[#E93A58] hover:bg-[#FFF0F3] rounded-lg transition"
                     >
                       <Trash2 size={16} />
                     </button>

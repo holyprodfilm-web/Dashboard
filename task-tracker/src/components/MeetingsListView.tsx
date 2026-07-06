@@ -45,11 +45,11 @@ export default function MeetingsListView({
             <div
               key={m.id}
               onClick={() => onSelectMeeting(m.id)}
-              className="bg-white p-6 rounded-2xl border border-slate-200 hover:border-blue-300 hover:shadow-xl cursor-pointer transition-all duration-300 group"
+              className="bg-white p-6 rounded-2xl border border-slate-200 hover:border-teal-300 hover:shadow-xl cursor-pointer transition-all duration-300 group"
             >
               <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-slate-900 group-hover:text-blue-600 transition mb-2">
+                  <h3 className="text-lg font-semibold text-slate-900 group-hover:text-teal-600 transition mb-2">
                     {m.title}
                   </h3>
                   <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
@@ -86,7 +86,7 @@ export default function MeetingsListView({
                   {canDelete && (
                     <button
                       onClick={(e) => deleteMeeting(m.id, e)}
-                      className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                      className="p-2 text-slate-300 hover:text-[#E93A58] hover:bg-[#FFF0F3] rounded-lg transition opacity-0 group-hover:opacity-100"
                       title="Удалить"
                     >
                       <Trash2 size={18} />

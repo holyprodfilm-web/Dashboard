@@ -90,7 +90,7 @@ export default function BootstrapAdminBanner({ currentProfile, profiles, onPromo
           можете получить права администратора и начать управлять системой.
         </p>
         {error && (
-          <p className="mt-2 text-sm text-red-600">{error}</p>
+          <p className="mt-2 text-sm text-[#E93A58]">{error}</p>
         )}
       </div>
       <button

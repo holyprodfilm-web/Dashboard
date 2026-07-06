@@ -86,7 +86,7 @@ export default function EditMeetingModal({ meeting, addresses, profiles, onClose
               <input 
                 value={title} 
                 onChange={e => setTitle(e.target.value)} 
-                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
+                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
                 placeholder="Введите тему"
               />
             </div>
@@ -98,7 +98,7 @@ export default function EditMeetingModal({ meeting, addresses, profiles, onClose
               <select 
                 value={managerId} 
                 onChange={e => setManagerId(e.target.value)} 
-                className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition text-slate-700"
+                className="w-full p-3 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition text-slate-700"
               >
                 <option value="">Выберите руководителя</option>
                 {profiles.filter(p => p.role === 'admin' || p.role === 'manager').map((p) => (
@@ -117,7 +117,7 @@ export default function EditMeetingModal({ meeting, addresses, profiles, onClose
                 type="date" 
                 value={date} 
                 onChange={e => setDate(e.target.value)} 
-                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
+                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
               />
             </div>
             
@@ -128,7 +128,7 @@ export default function EditMeetingModal({ meeting, addresses, profiles, onClose
               <input 
                 value={protocol} 
                 onChange={e => setProtocol(e.target.value)} 
-                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
+                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
                 placeholder="Например: 1"
               />
             </div>
@@ -147,7 +147,7 @@ export default function EditMeetingModal({ meeting, addresses, profiles, onClose
                     <span 
                       key={uin} 
                       onClick={() => toggleUin(uin)} 
-                      className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs cursor-pointer hover:bg-blue-200 transition"
+                      className="flex items-center gap-1 px-2 py-1 bg-teal-100 text-teal-700 rounded-lg text-xs cursor-pointer hover:bg-teal-200 transition"
                     >
                       {obj?.["Городской округ"]}: {obj?.["Наименование объекта"].substring(0, 20)}... 
                       <X size={12} />
@@ -162,7 +162,7 @@ export default function EditMeetingModal({ meeting, addresses, profiles, onClose
                 value={searchObj} 
                 onChange={e => setSearchObj(e.target.value)} 
                 placeholder="Поиск объекта по названию, УИН или округу..." 
-                className="w-full pl-4 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
+                className="w-full pl-4 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" 
               />
             </div>
 
@@ -171,14 +171,14 @@ export default function EditMeetingModal({ meeting, addresses, profiles, onClose
                 <label 
                   key={obj["Код УИН"]} 
                   className={`flex items-center gap-3 p-3 border-b border-slate-50 last:border-0 cursor-pointer transition ${
-                    selectedUins.includes(obj["Код УИН"]) ? 'bg-blue-50' : 'hover:bg-slate-50'
+                    selectedUins.includes(obj["Код УИН"]) ? 'bg-teal-50' : 'hover:bg-slate-50'
                   }`}
                 >
                   <input 
                     type="checkbox" 
                     checked={selectedUins.includes(obj["Код УИН"])} 
                     onChange={() => toggleUin(obj["Код УИН"])} 
-                    className="w-4 h-4 text-blue-600 rounded" 
+                    className="w-4 h-4 text-teal-600 rounded" 
                   />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-slate-900 truncate">
@@ -209,7 +209,7 @@ export default function EditMeetingModal({ meeting, addresses, profiles, onClose
           <button 
             onClick={handleSave} 
             disabled={!title || !managerId || saving} 
-            className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2 font-medium"
+            className="px-5 py-2.5 bg-gradient-to-r from-[#E97386] to-[#EFA566] text-white rounded-xl hover:from-[#d4607a] hover:to-[#e0925a] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2 font-medium"
           >
             {saving ? (
               <>Сохранение...</>

@@ -23,9 +23,9 @@ const dashboardModule: Module = {
   title: 'Протокольные поручения',
   description: 'Аналитика, протоколы совещаний и контроль исполнения поручений.',
   icon: <FileText size={32} />,
-  bg: 'bg-blue-50',
-  text: 'text-blue-600',
-  hoverBorder: 'group-hover:border-blue-200',
+  bg: 'bg-teal-50',
+  text: 'text-teal-600',
+  hoverBorder: 'group-hover:border-teal-200',
 };
 
 const objectsModule: Module = {

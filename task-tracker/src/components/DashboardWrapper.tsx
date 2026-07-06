@@ -82,7 +82,7 @@ export default function DashboardWrapper({
               {'count' in tab && tab.count !== undefined && tab.count > 0 && (
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                   activeTab === tab.id
-                    ? 'bg-blue-100 text-blue-600'
+                    ? 'bg-teal-100 text-teal-600'
                     : 'bg-slate-200 text-slate-500'
                 }`}>
                   {tab.count}
@@ -95,7 +95,7 @@ export default function DashboardWrapper({
         {canCreate && (
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-500/20 transition-all text-sm font-medium"
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#E97386] to-[#EFA566] hover:from-[#d4607a] hover:to-[#e0925a] text-white rounded-xl shadow-lg shadow-[#E97386]/20 transition-all text-sm font-medium"
           >
             <Plus size={18} /> Новый протокол
           </button>

@@ -50,7 +50,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Логотип */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 mx-auto mb-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-[#E97386] to-[#EFA566] rounded-2xl flex items-center justify-center shadow-lg shadow-[#E97386]/20 mx-auto mb-4">
             <Target className="text-white" size={32} />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 leading-tight">
@@ -74,7 +74,7 @@ export default function LoginPage() {
                   value={fullName}
                   onChange={e => setFullName(e.target.value)}
                   placeholder="Иванов Иван Иванович"
-                  className="w-full p-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition bg-white"
+                  className="w-full p-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition bg-white"
                   required
                 />
               </div>
@@ -87,7 +87,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="your@email.com"
-                className="w-full p-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition bg-white"
+                className="w-full p-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition bg-white"
                 required
               />
             </div>
@@ -99,14 +99,14 @@ export default function LoginPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full p-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition bg-white"
+                className="w-full p-3 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition bg-white"
                 required
                 minLength={6}
               />
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+              <div className="p-3 bg-[#FFF0F3] border border-[#FFB3BF] rounded-xl text-[#c42d49] text-sm">
                 {error}
               </div>
             )}
@@ -120,7 +120,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50 font-medium"
+              className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-[#E97386] to-[#EFA566] hover:from-[#d4607a] hover:to-[#e0925a] text-white rounded-xl shadow-lg shadow-[#E97386]/20 transition-all disabled:opacity-50 font-medium"
             >
               {loading ? (
                 <Loader2 className="animate-spin" size={20} />
@@ -139,7 +139,7 @@ export default function LoginPage() {
           <div className="mt-6 text-center">
             <button
               onClick={() => { setIsSignUp(!isSignUp); setError(''); setSuccess(''); }}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="text-sm text-teal-600 hover:text-teal-700 font-medium"
             >
               {isSignUp ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
             </button>

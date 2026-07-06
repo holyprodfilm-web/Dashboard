@@ -76,7 +76,7 @@ export const STATUS_CONFIG: Record<string, { label: string; color: string; bg: s
   new: { label: 'Новое', color: 'text-slate-700', bg: 'bg-slate-100' },
   in_progress: { label: 'В работе', color: 'text-amber-700', bg: 'bg-amber-100' },
   completed: { label: 'Исполнено', color: 'text-emerald-700', bg: 'bg-emerald-100' },
-  overdue: { label: 'Просрочено', color: 'text-red-700', bg: 'bg-red-100' },
+  overdue: { label: 'Просрочено', color: 'text-[#E93A58]', bg: 'bg-[#FFF0F3]' },
 };
 
 export const ORGANIZATIONS = [

@@ -62,7 +62,7 @@ export default function AddTaskLinkModal({ currentTask, allTasks, existingLinks,
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
-            <Link2 size={18} className="text-blue-500" />
+            <Link2 size={18} className="text-teal-500" />
             <h3 className="text-lg font-bold text-slate-900">Добавить связь</h3>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
@@ -76,31 +76,31 @@ export default function AddTaskLinkModal({ currentTask, allTasks, existingLinks,
               onClick={() => setDirection('current_is_parent')}
               className={`flex items-center gap-3 p-3 rounded-xl border text-sm transition text-left ${
                 direction === 'current_is_parent'
-                  ? 'border-blue-400 bg-blue-50 text-blue-800'
+                  ? 'border-teal-400 bg-teal-50 text-teal-800'
                   : 'border-slate-200 hover:border-slate-300 text-slate-700'
               }`}
             >
-              <ArrowDown size={16} className={direction === 'current_is_parent' ? 'text-blue-500' : 'text-slate-400'} />
+              <ArrowDown size={16} className={direction === 'current_is_parent' ? 'text-teal-500' : 'text-slate-400'} />
               <div>
                 <div className="font-medium">Текущее породило выбранное</div>
                 <div className="text-xs opacity-70">Выбранное поручение родилось из результата текущего</div>
               </div>
-              {direction === 'current_is_parent' && <Check size={15} className="ml-auto text-blue-500 shrink-0" />}
+              {direction === 'current_is_parent' && <Check size={15} className="ml-auto text-teal-500 shrink-0" />}
             </button>
             <button
               onClick={() => setDirection('current_is_child')}
               className={`flex items-center gap-3 p-3 rounded-xl border text-sm transition text-left ${
                 direction === 'current_is_child'
-                  ? 'border-indigo-400 bg-indigo-50 text-indigo-800'
+                  ? 'border-teal-400 bg-teal-50 text-teal-800'
                   : 'border-slate-200 hover:border-slate-300 text-slate-700'
               }`}
             >
-              <ArrowUp size={16} className={direction === 'current_is_child' ? 'text-indigo-500' : 'text-slate-400'} />
+              <ArrowUp size={16} className={direction === 'current_is_child' ? 'text-teal-500' : 'text-slate-400'} />
               <div>
                 <div className="font-medium">Текущее родилось из выбранного</div>
                 <div className="text-xs opacity-70">Текущее поручение родилось из результата выбранного</div>
               </div>
-              {direction === 'current_is_child' && <Check size={15} className="ml-auto text-indigo-500 shrink-0" />}
+              {direction === 'current_is_child' && <Check size={15} className="ml-auto text-teal-500 shrink-0" />}
             </button>
           </div>
         </div>
@@ -126,7 +126,7 @@ export default function AddTaskLinkModal({ currentTask, allTasks, existingLinks,
                   onClick={() => setSelectedId(isSelected ? null : task.id)}
                   className={`w-full text-left p-3 rounded-xl border transition ${
                     isSelected
-                      ? 'border-blue-400 bg-blue-50'
+                      ? 'border-teal-400 bg-teal-50'
                       : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
@@ -141,7 +141,7 @@ export default function AddTaskLinkModal({ currentTask, allTasks, existingLinks,
                         <p className="text-xs text-slate-400 mt-1 truncate">{meeting.title}</p>
                       )}
                     </div>
-                    {isSelected && <Check size={16} className="text-blue-500 shrink-0 mt-1" />}
+                    {isSelected && <Check size={16} className="text-teal-500 shrink-0 mt-1" />}
                   </div>
                 </button>
               );
@@ -149,7 +149,7 @@ export default function AddTaskLinkModal({ currentTask, allTasks, existingLinks,
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+        {error && <p className="text-sm text-[#E93A58] mt-3">{error}</p>}
 
         <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-slate-100">
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-sm transition">
@@ -158,7 +158,7 @@ export default function AddTaskLinkModal({ currentTask, allTasks, existingLinks,
           <button
             onClick={handleSave}
             disabled={!selectedId || saving}
-            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm disabled:opacity-50 transition flex items-center gap-2"
+            className="px-4 py-2 bg-gradient-to-r from-[#E97386] to-[#EFA566] text-white rounded-xl text-sm disabled:opacity-50 transition flex items-center gap-2"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
             Создать связь

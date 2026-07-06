@@ -99,7 +99,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
     <>
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-slate-900 mb-1">Справочник объектов</h2>
+          <h2 className="text-3xl font-bold text-[#8A4C08] mb-1">Справочник объектов</h2>
           <p className="text-slate-500 mb-3">
             {statusFilter
               ? `Показаны объекты: ${STATUS_FILTER_LABELS[statusFilter]} · ${filtered.length} из ${addresses.length}`
@@ -155,7 +155,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
         {isAdmin && (
           <button
             onClick={() => setShowUpload(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition text-sm font-medium shadow-sm shrink-0"
+            className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl transition text-sm font-medium shadow-sm shrink-0"
           >
             <Upload size={16} />
             Загрузить CSV
@@ -169,7 +169,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Поиск по УИН, названию, округу или руководителю..."
-          className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition shadow-sm"
+          className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition shadow-sm"
         />
       </div>
 
@@ -182,7 +182,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
           return (
             <div
               key={addr["Код УИН"]}
-              className="bg-white p-5 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition group"
+              className="bg-white p-5 rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-md transition group"
             >
               <div className="flex items-start justify-between gap-4">
                 <div
@@ -190,10 +190,10 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                   onClick={() => { setSelectedAddress(addr); setSelectedFocusTaskId(null); }}
                 >
                   <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-mono font-semibold">
+                    <span className="px-2 py-1 bg-teal-50 text-teal-700 rounded-lg text-xs font-mono font-semibold">
                       УИН: {addr["Код УИН"]}
                     </span>
-                    <h4 className="font-semibold text-slate-900 group-hover:text-blue-600 transition">
+                    <h4 className="font-semibold text-slate-900 group-hover:text-teal-600 transition">
                       {addr["Наименование объекта"]}
                     </h4>
                     {addr["Тип объекта"] && (
@@ -222,7 +222,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                   {tCount > 0 && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setSelectedAddress(addr); setSelectedFocusTaskId(null); }}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-500 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-500 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-600 transition"
                     >
                       <GitBranch size={13} />
                       {tCount} поруч.
@@ -231,7 +231,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                   {isAdmin && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setDeleteTarget(addr); setDeleteError(''); }}
-                      className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                      className="p-2 text-slate-300 hover:text-[#E93A58] hover:bg-[#FFF0F3] rounded-lg transition opacity-0 group-hover:opacity-100"
                       title="Удалить объект"
                     >
                       <Trash2 size={15} />
@@ -293,10 +293,10 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                         <button
                           key={task.id}
                           onClick={(e) => { e.stopPropagation(); setSelectedAddress(addr); setSelectedFocusTaskId(task.id); }}
-                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition text-xs text-left group/chip"
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-teal-50 hover:border-teal-300 transition text-xs text-left group/chip"
                           title={task.description}
                         >
-                          <ClipboardList size={11} className="text-slate-400 group-hover/chip:text-blue-500 shrink-0" />
+                          <ClipboardList size={11} className="text-slate-400 group-hover/chip:text-teal-500 shrink-0" />
                           <span className={`px-1.5 py-0.5 rounded-md font-medium shrink-0 ${cfg.bg} ${cfg.color}`}>
                             {cfg.label}
                           </span>
@@ -354,8 +354,8 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
           <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-red-100 rounded-xl">
-                  <Trash2 size={20} className="text-red-600" />
+                <div className="p-2 bg-[#FFD6DC] rounded-xl">
+                  <Trash2 size={20} className="text-[#E93A58]" />
                 </div>
                 <h3 className="text-lg font-bold text-slate-900">Удалить объект?</h3>
               </div>
@@ -364,14 +364,14 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                 <span className="font-semibold text-slate-900">
                   {deleteTarget['Наименование объекта']}
                 </span>{' '}
-                (УИН: <span className="font-mono text-blue-700">{deleteTarget['Код УИН']}</span>).
+                (УИН: <span className="font-mono text-teal-700">{deleteTarget['Код УИН']}</span>).
                 Это действие необратимо.
               </p>
               {linkedTaskCount > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 space-y-2">
+                <div className="bg-[#FFF0F3] border border-[#FFB3BF] rounded-xl px-3 py-2.5 space-y-2">
                   <div className="flex items-start gap-2.5">
-                    <GitBranch size={15} className="text-red-600 mt-0.5 shrink-0" />
-                    <p className="text-sm text-red-800">
+                    <GitBranch size={15} className="text-[#E93A58] mt-0.5 shrink-0" />
+                    <p className="text-sm text-[#a32440]">
                       <span className="font-semibold">Удаление заблокировано:</span> с этим объектом связано{' '}
                       <span className="font-semibold">{linkedTaskCount}</span>{' '}
                       {linkedTaskCount === 1 ? 'поручение' : linkedTaskCount >= 2 && linkedTaskCount <= 4 ? 'поручения' : 'поручений'}.
@@ -386,26 +386,26 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                           <button
                             type="button"
                             onClick={() => { setDeleteDialogDetailAddress(deleteTarget); setDeleteDialogFocusTaskId(task.id); }}
-                            className="w-full flex items-center gap-2 text-xs text-red-900 hover:bg-red-100 rounded-lg px-1.5 py-1 transition text-left group/task"
+                            className="w-full flex items-center gap-2 text-xs text-[#861d35] hover:bg-[#FFD6DC] rounded-lg px-1.5 py-1 transition text-left group/task"
                             title="Открыть карточку объекта"
                           >
                             <span className={`px-1.5 py-0.5 rounded-md font-medium shrink-0 ${sc?.bg ?? 'bg-slate-100'} ${sc?.color ?? 'text-slate-700'}`}>
                               {sc?.label ?? task.status}
                             </span>
                             <span className="truncate flex-1">{task.description}</span>
-                            <span className="text-red-400 opacity-0 group-hover/task:opacity-100 transition shrink-0">↗</span>
+                            <span className="text-[#f0697f] opacity-0 group-hover/task:opacity-100 transition shrink-0">↗</span>
                           </button>
                         </li>
                       );
                     })}
                     {overflowCount > 0 && (
-                      <li className="text-xs text-red-700 pl-1">и ещё {overflowCount}…</li>
+                      <li className="text-xs text-[#c42d49] pl-1">и ещё {overflowCount}…</li>
                     )}
                   </ul>
                 </div>
               )}
               {deleteError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                <p className="text-sm text-[#E93A58] bg-[#FFF0F3] border border-[#FFB3BF] rounded-xl px-3 py-2">
                   {deleteError}
                 </p>
               )}
@@ -420,7 +420,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                 <button
                   onClick={handleDelete}
                   disabled={deleting || linkedTaskCount > 0}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#E93A58] hover:bg-[#c42d49] text-white rounded-xl transition text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                   title={linkedTaskCount > 0 ? 'Снимите все поручения перед удалением' : undefined}
                 >
                   {deleting ? 'Удаление...' : 'Удалить'}

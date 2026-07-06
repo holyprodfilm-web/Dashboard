@@ -63,7 +63,7 @@ export default function DashboardView({ tasks, meetings, onManagerClick, onStatu
   return (
     <>
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-slate-900">Дашборд</h2>
+        <h2 className="text-2xl font-bold text-[#8A4C08]">Дашборд</h2>
         <p className="text-slate-500">Аналитика и статистика исполнения поручений</p>
       </div>
 
@@ -76,14 +76,14 @@ export default function DashboardView({ tasks, meetings, onManagerClick, onStatu
           <div className="text-sm text-slate-500 mb-1">Общий прогресс</div>
           <div className="text-3xl font-bold text-slate-900">{progressPercent}%</div>
           <div className="w-full bg-slate-100 rounded-full h-2 mt-2">
-            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all" style={{ width: `${progressPercent}%` }}></div>
+            <div className="bg-gradient-to-r from-[#E97386] to-[#EFA566] h-2 rounded-full transition-all" style={{ width: `${progressPercent}%` }}></div>
           </div>
         </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100">
-          <h3 className="text-lg font-bold text-slate-900">Количество протокольных поручений по руководителям проектов</h3>
+          <h3 className="text-lg font-bold text-[#8A4C08]">Количество протокольных поручений по руководителям проектов</h3>
           <p className="text-sm text-slate-500">Общее количество поручений по всем совещаниям</p>
         </div>
         <div className="overflow-x-auto">
@@ -105,17 +105,17 @@ export default function DashboardView({ tasks, meetings, onManagerClick, onStatu
                   <tr 
                     key={manager} 
                     onClick={() => onManagerClick(manager)}
-                    className="hover:bg-blue-50 transition cursor-pointer"
+                    className="hover:bg-teal-50 transition cursor-pointer"
                   >
-                    <td className="px-6 py-4 font-medium text-blue-600 hover:text-blue-700">{manager}</td>
+                    <td className="px-6 py-4 font-medium text-teal-600 hover:text-teal-700">{manager}</td>
                     <td className="px-6 py-4 text-center font-semibold">{data.total}</td>
                     <td className="px-6 py-4 text-center text-emerald-600 font-semibold">{data.completed}</td>
                     <td className="px-6 py-4 text-center text-amber-600 font-semibold">{data.inProgress + data.newTasks}</td>
-                    <td className="px-6 py-4 text-center text-red-600 font-semibold">{data.overdue}</td>
+                    <td className="px-6 py-4 text-center text-[#E93A58] font-semibold">{data.overdue}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-slate-100 rounded-full h-2">
-                          <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }}></div>
+                          <div className="bg-teal-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }}></div>
                         </div>
                         <span className="text-xs font-medium text-slate-500 w-8">{pct}%</span>
                       </div>

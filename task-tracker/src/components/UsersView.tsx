@@ -65,14 +65,14 @@ export default function UsersView({ profiles, onReload }: UsersViewProps) {
                     value={p.role}
                     disabled={updating === p.id}
                     onChange={e => updateRole(p.id, e.target.value as Profile['role'])}
-                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none disabled:opacity-50"
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none disabled:opacity-50"
                   >
                     {ROLES.map(role => (
                       <option key={role} value={role}>{ROLE_LABELS[role]}</option>
                     ))}
                   </select>
                   {updating === p.id && (
-                    <Loader2 className="inline-block ml-2 animate-spin text-blue-600" size={14} />
+                    <Loader2 className="inline-block ml-2 animate-spin text-teal-600" size={14} />
                   )}
                 </td>
               </tr>
