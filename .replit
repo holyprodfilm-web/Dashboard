@@ -43,5 +43,5 @@ timeoutMs = 60000
 
 [deployment]
 deploymentTarget = "static"
-build = ["bash", "-c", "cd task-tracker && npm run build"]
+build = ["npm", "--prefix", "task-tracker", "run", "build"]
 publicDir = "task-tracker/dist"
