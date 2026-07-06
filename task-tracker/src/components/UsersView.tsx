@@ -10,8 +10,8 @@ interface UsersViewProps {
   onReload: () => void;
 }
 
-const ROLES_LIST: Array<Profile['role']> = ['admin', 'manager', 'analyst', 'guest'];
-const EDITABLE_ROLES: Array<Profile['role']> = ['manager', 'analyst', 'guest'];
+const ROLES_LIST: Array<Profile['role']> = ['admin', 'manager', 'module_responsible', 'analyst', 'guest'];
+const EDITABLE_ROLES: Array<Profile['role']> = ['manager', 'module_responsible', 'analyst', 'guest'];
 
 const MODULES_CONFIG = [
   {
@@ -32,6 +32,11 @@ const MODULES_CONFIG = [
   {
     id: 'closure',
     label: 'Закрытие объектов',
+    features: [],
+  },
+  {
+    id: 'nts',
+    label: 'НТС',
     features: [],
   },
 ];

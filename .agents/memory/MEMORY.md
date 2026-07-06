@@ -1,3 +1,4 @@
 - [Supabase seeding from Replit](supabase-seeding.md) — management API + temporary anon policy approach; OOM triggers on large SQL; 5-row batches safe
 - [Role system](role-system.md) — roles are admin/manager/analyst/guest; module permissions in role_permissions table; migrations v5+v6 applied
 - [Closure system](closure-system.md) — closure_objects edit/audit/import; sum unit must be explicit (mln vs rub toggle); as const type unions cause TS issues, use typed arrays instead
+- [NTS module](nts-module.md) — 5 tables; module_responsible role requires v16b constraint patch; checklist 61 items seeded once; RLS open for authenticated

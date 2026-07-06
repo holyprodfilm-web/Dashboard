@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { FileText, Building2, ArrowRight, Users, BarChart2 } from 'lucide-react';
+import { FileText, Building2, ArrowRight, Users, BarChart2, FlaskConical } from 'lucide-react';
 
-type ModuleId = 'dashboard' | 'objects' | 'users' | 'closure';
+type ModuleId = 'dashboard' | 'objects' | 'users' | 'closure' | 'nts';
 
 interface Module {
   id: ModuleId;
@@ -48,6 +48,15 @@ const MODULES: Module[] = [
     bg: 'bg-amber-50',
     text: 'text-amber-600',
     hoverBorder: 'group-hover:border-amber-200',
+  },
+  {
+    id: 'nts',
+    title: 'НТС',
+    description: 'Научно-технический совет: чек-листы, заседания, протоколы и аналитика по объектам.',
+    icon: <FlaskConical size={32} />,
+    bg: 'bg-indigo-50',
+    text: 'text-indigo-600',
+    hoverBorder: 'group-hover:border-indigo-200',
   },
   {
     id: 'users',

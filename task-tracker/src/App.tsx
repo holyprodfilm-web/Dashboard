@@ -15,6 +15,7 @@ import ManagerTasksView from './components/ManagerTasksView';
 import UsersView from './components/UsersView';
 import BootstrapAdminBanner from './components/BootstrapAdminBanner';
 import ClosureView from './components/ClosureView';
+import NtsView from './components/NtsView';
 import Toast from './components/Toast';
 
 function AppContent() {
@@ -412,7 +413,7 @@ function AppContent() {
               profile?.role === 'admin'
                 ? undefined
                 : Object.fromEntries(
-                    ['dashboard', 'objects', 'closure'].map(mod => {
+                    ['dashboard', 'objects', 'closure', 'nts'].map(mod => {
                       const perm = rolePermissions.find(
                         p => p.role === (profile?.role ?? 'guest') && p.module === mod
                       );
@@ -467,6 +468,13 @@ function AppContent() {
             onReload={loadAllData}
             statusFilter={objectsStatusFilter}
             onClearFilter={() => setObjectsStatusFilter(null)}
+          />
+        )}
+        {view === 'nts' && hasModule('nts') && (
+          <NtsView
+            profiles={profiles}
+            currentUserId={profile?.id}
+            currentUserRole={profile?.role}
           />
         )}
         {view === 'users' && profile?.role === 'admin' && (

@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, ClipboardList, GitBranch, Building2, Calendar, User, Tag, Loader2, Link2 } from 'lucide-react';
+import { X, ClipboardList, GitBranch, Building2, Calendar, User, Tag, Loader2, Link2, FlaskConical } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { usePermissions } from '../lib/usePermissions';
-import type { Address, Task, TaskLink, Meeting } from '../types';
-import { STATUS_CONFIG } from '../types';
+import type { Address, Task, TaskLink, Meeting, NtsEntry, NtsSession, NtsDocRound } from '../types';
+import { STATUS_CONFIG, NTS_STATUS_CONFIG } from '../types';
 import { getAutoStatus } from '../utils';
 import TaskGraph from './TaskGraph';
 
@@ -18,7 +18,11 @@ interface Props {
 export default function ObjectDetailModal({ address, allTasks, allMeetings, focusTaskId, onClose }: Props) {
   const uin = address["Код УИН"];
   const { canDelete } = usePermissions();
-  const [tab, setTab] = useState<'tasks' | 'graph'>('tasks');
+  const [tab, setTab] = useState<'tasks' | 'graph' | 'nts'>('tasks');
+  const [ntsEntries, setNtsEntries] = useState<NtsEntry[]>([]);
+  const [ntsSessions, setNtsSessions] = useState<NtsSession[]>([]);
+  const [ntsRounds, setNtsRounds] = useState<NtsDocRound[]>([]);
+  const [loadingNts, setLoadingNts] = useState(false);
   const [links, setLinks] = useState<TaskLink[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(true);
   const [highlightedTaskId, setHighlightedTaskId] = useState<number | null>(focusTaskId ?? null);
@@ -56,6 +60,28 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
   };
 
   useEffect(() => { void loadLinks(); }, [uin]);
+
+  const loadNts = async () => {
+    setLoadingNts(true);
+    const { data: entData } = await supabase.from('nts_entries').select('*').eq('object_uin', uin).order('created_at', { ascending: false });
+    const entries = (entData ?? []) as NtsEntry[];
+    setNtsEntries(entries);
+    if (entries.length > 0) {
+      const ids = entries.map(e => e.id);
+      const [sesRes, rndRes] = await Promise.all([
+        supabase.from('nts_sessions').select('*').in('nts_entry_id', ids).order('session_date', { ascending: false }),
+        supabase.from('nts_doc_rounds').select('*').in('nts_entry_id', ids).order('received_date', { ascending: false }),
+      ]);
+      setNtsSessions((sesRes.data ?? []) as NtsSession[]);
+      setNtsRounds((rndRes.data ?? []) as NtsDocRound[]);
+    }
+    setLoadingNts(false);
+  };
+
+  useEffect(() => {
+    if (tab === 'nts') void loadNts();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, uin]);
 
   // Scroll to and highlight the focused task after render
   useEffect(() => {
@@ -140,6 +166,15 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
               {links.length > 0 && (
                 <span className="text-xs px-1.5 py-0.5 bg-teal-100 rounded-full text-teal-600">{links.length}</span>
               )}
+            </button>
+            <button
+              onClick={() => setTab('nts')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                tab === 'nts' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <FlaskConical size={15} />
+              НТС
             </button>
           </nav>
         </div>
@@ -287,6 +322,92 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
               </div>
             ) : (
               <TaskGraph tasks={objectTasks} links={links} meetings={allMeetings} />
+            )
+          )}
+
+          {tab === 'nts' && (
+            loadingNts ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="animate-spin text-indigo-500" size={28} />
+              </div>
+            ) : ntsEntries.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                <FlaskConical size={32} className="mx-auto mb-2 opacity-30" />
+                <p>Записей НТС по этому объекту нет</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {ntsEntries.map(entry => {
+                  const sCfg = NTS_STATUS_CONFIG[entry.status];
+                  const entrySessions = ntsSessions.filter(s => s.nts_entry_id === entry.id);
+                  const entryRounds = ntsRounds.filter(r => r.nts_entry_id === entry.id);
+                  const pct = entry.contract_cost > 0
+                    ? ((entry.pre_nts_cost - entry.contract_cost) / entry.contract_cost * 100)
+                    : 0;
+                  return (
+                    <div key={entry.id} className="border border-slate-200 rounded-xl overflow-hidden">
+                      {/* Entry header */}
+                      <div className="bg-slate-50 px-5 py-3 flex items-center gap-3 flex-wrap">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sCfg.bg} ${sCfg.color}`}>
+                          {sCfg.label}
+                        </span>
+                        <span className="text-sm font-medium text-slate-800">{entry.contractor}</span>
+                        <span className={`text-sm font-semibold ml-auto ${pct > 30 ? 'text-red-600' : 'text-amber-600'}`}>
+                          {pct > 0 ? '+' : ''}{pct.toFixed(1)}% ({new Intl.NumberFormat('ru-RU').format(entry.pre_nts_cost)} тыс.)
+                        </span>
+                      </div>
+
+                      {/* Sessions */}
+                      {entrySessions.length > 0 && (
+                        <div className="px-5 py-3 border-t border-slate-100">
+                          <p className="text-xs font-semibold text-slate-500 uppercase mb-2">
+                            Заседания ВКС ({entrySessions.length})
+                          </p>
+                          <div className="space-y-2">
+                            {entrySessions.map(s => (
+                              <div key={s.id} className="text-sm">
+                                <span className="font-medium text-slate-700 flex items-center gap-1.5">
+                                  <Calendar size={12} className="text-violet-500" />
+                                  {new Date(s.session_date).toLocaleDateString('ru-RU')}
+                                </span>
+                                {s.remarks && (
+                                  <p className="text-slate-500 mt-0.5 pl-4">{s.remarks}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Doc rounds */}
+                      {entryRounds.length > 0 && (
+                        <div className="px-5 py-3 border-t border-slate-100">
+                          <p className="text-xs font-semibold text-slate-500 uppercase mb-2">
+                            Раунды документации ({entryRounds.length})
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {entryRounds.map((r, idx) => (
+                              <span key={r.id} className="text-xs px-2 py-1 bg-indigo-50 text-indigo-700 rounded-lg">
+                                Раунд {idx + 1}: {new Date(r.received_date).toLocaleDateString('ru-RU')}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Protocol */}
+                      {entry.protocol_number && (
+                        <div className="px-5 py-3 border-t border-slate-100 text-sm text-slate-600">
+                          <span className="font-medium">Протокол №{entry.protocol_number}</span>
+                          {entry.protocol_date && (
+                            <span className="ml-2 text-slate-400">от {new Date(entry.protocol_date).toLocaleDateString('ru-RU')}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )
           )}
         </div>
