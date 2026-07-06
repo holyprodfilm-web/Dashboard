@@ -24,11 +24,17 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
   const [highlightedTaskId, setHighlightedTaskId] = useState<number | null>(focusTaskId ?? null);
   const taskRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
   const objectTasks = allTasks.filter(t => t.object_uin === uin);
   const meetingMap = new Map(allMeetings.map(m => [m.id, m]));
 
+  const filteredTasks = statusFilter === 'all'
+    ? objectTasks
+    : objectTasks.filter(t => getAutoStatus(t.status, t.deadline) === statusFilter);
+
   // Group tasks by meeting
-  const tasksByMeeting = objectTasks.reduce<Record<number, Task[]>>((acc, t) => {
+  const tasksByMeeting = filteredTasks.reduce<Record<number, Task[]>>((acc, t) => {
     if (!acc[t.meeting_id]) acc[t.meeting_id] = [];
     acc[t.meeting_id].push(t);
     return acc;
@@ -137,10 +143,43 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
         <div className="p-6">
           {tab === 'tasks' && (
             <>
-              {objectTasks.length === 0 ? (
+              {objectTasks.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-5">
+                  {[
+                    { key: 'all', label: 'Все', count: objectTasks.length },
+                    ...Object.entries(STATUS_CONFIG).map(([key, cfg]) => ({
+                      key,
+                      label: cfg.label,
+                      count: objectTasks.filter(t => getAutoStatus(t.status, t.deadline) === key).length,
+                    })).filter(({ count }) => count > 0),
+                  ].map(({ key, label, count }) => {
+                    const cfg = key === 'all' ? null : STATUS_CONFIG[key];
+                    const isActive = statusFilter === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setStatusFilter(key)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                          isActive
+                            ? cfg
+                              ? `${cfg.bg} ${cfg.color} border-current shadow-sm`
+                              : 'bg-slate-800 text-white border-slate-800 shadow-sm'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
+                        }`}
+                      >
+                        {label}
+                        <span className={`px-1.5 py-0.5 rounded-full text-xs ${isActive ? 'bg-white/30' : 'bg-slate-100 text-slate-400'}`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {filteredTasks.length === 0 ? (
                 <div className="text-center py-12 text-slate-400">
                   <ClipboardList size={32} className="mx-auto mb-2 opacity-30" />
-                  <p>По этому объекту поручений нет</p>
+                  <p>{objectTasks.length === 0 ? 'По этому объекту поручений нет' : 'Нет поручений с таким статусом'}</p>
                 </div>
               ) : (
                 <div className="space-y-6">
