@@ -86,7 +86,6 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
           const tCount = addrTasks.length;
           const SHOW_MAX = 3;
           const visibleTasks = addrTasks.slice(0, SHOW_MAX);
-          const overflowCount = tCount - SHOW_MAX;
           return (
             <div
               key={addr["Код УИН"]}
@@ -148,37 +147,73 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                 </div>
               </div>
 
-              {/* Clickable task chips */}
-              {tCount > 0 && (
-                <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
-                  {visibleTasks.map(task => {
-                    const status = getAutoStatus(task.status, task.deadline);
-                    const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['new'];
-                    return (
-                      <button
-                        key={task.id}
-                        onClick={(e) => { e.stopPropagation(); setSelectedAddress(addr); setSelectedFocusTaskId(task.id); }}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition text-xs text-left group/chip"
-                        title={task.description}
-                      >
-                        <ClipboardList size={11} className="text-slate-400 group-hover/chip:text-blue-500 shrink-0" />
-                        <span className={`px-1.5 py-0.5 rounded-md font-medium shrink-0 ${cfg.bg} ${cfg.color}`}>
-                          {cfg.label}
-                        </span>
-                        <span className="text-slate-600 truncate max-w-[180px]">{task.description}</span>
-                      </button>
-                    );
-                  })}
-                  {overflowCount > 0 && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setSelectedAddress(addr); setSelectedFocusTaskId(null); }}
-                      className="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition text-xs text-slate-500"
-                    >
-                      +{overflowCount} ещё…
-                    </button>
-                  )}
-                </div>
-              )}
+              {/* Task chips / status summary */}
+              {(() => {
+                if (tCount === 0) {
+                  return (
+                    <div className="mt-3 pt-3 border-t border-slate-100">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-dashed border-slate-200 text-xs text-slate-400">
+                        <ClipboardList size={11} className="opacity-60" />
+                        Поручений нет
+                      </span>
+                    </div>
+                  );
+                }
+                if (tCount > SHOW_MAX) {
+                  // Compact status summary: count tasks by effective status
+                  const statusCounts: Record<string, { count: number; firstTaskId: number }> = {};
+                  for (const task of addrTasks) {
+                    const s = getAutoStatus(task.status, task.deadline);
+                    if (!statusCounts[s]) statusCounts[s] = { count: 0, firstTaskId: task.id };
+                    statusCounts[s].count++;
+                  }
+                  const statusOrder = ['overdue', 'in_progress', 'new', 'completed'];
+                  const sortedStatuses = Object.keys(statusCounts).sort(
+                    (a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b)
+                  );
+                  return (
+                    <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+                      {sortedStatuses.map(s => {
+                        const cfg = STATUS_CONFIG[s] || STATUS_CONFIG['new'];
+                        const { count, firstTaskId } = statusCounts[s];
+                        return (
+                          <button
+                            key={s}
+                            onClick={(e) => { e.stopPropagation(); setSelectedAddress(addr); setSelectedFocusTaskId(firstTaskId); }}
+                            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border transition text-xs font-medium ${cfg.bg} ${cfg.color} border-transparent hover:border-current hover:opacity-90`}
+                            title={`Перейти к первому поручению со статусом «${cfg.label}»`}
+                          >
+                            <span className="font-bold">{count}</span>
+                            <span className="opacity-80">{cfg.label.toLowerCase()}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                }
+                return (
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+                    {visibleTasks.map(task => {
+                      const status = getAutoStatus(task.status, task.deadline);
+                      const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['new'];
+                      return (
+                        <button
+                          key={task.id}
+                          onClick={(e) => { e.stopPropagation(); setSelectedAddress(addr); setSelectedFocusTaskId(task.id); }}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition text-xs text-left group/chip"
+                          title={task.description}
+                        >
+                          <ClipboardList size={11} className="text-slate-400 group-hover/chip:text-blue-500 shrink-0" />
+                          <span className={`px-1.5 py-0.5 rounded-md font-medium shrink-0 ${cfg.bg} ${cfg.color}`}>
+                            {cfg.label}
+                          </span>
+                          <span className="text-slate-600 truncate max-w-[180px]">{task.description}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
