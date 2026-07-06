@@ -250,7 +250,7 @@ export default function MeetingDetailView({
           meetingId={meetingId}
           availableObjects={availableObjects}
           onClose={() => setShowTaskModal(false)}
-          onCreated={() => { /* real-time subscription picks up the new task */ }}
+          onCreated={() => { setToast('Поручение создано'); }}
         />
       )}
 
@@ -262,6 +262,7 @@ export default function MeetingDetailView({
           onClose={() => setShowEditModal(false)}
           onSave={() => {
             setShowEditModal(false);
+            setToast('Протокол обновлён');
             onReload();
             loadMeeting();
           }}
@@ -275,7 +276,7 @@ export default function MeetingDetailView({
           existingLinks={getLinksForTask(linkTargetTask.id)}
           meetings={meetings}
           onClose={() => setLinkTargetTask(null)}
-          onCreated={() => { setLinkTargetTask(null); void loadLinks(); }}
+          onCreated={() => { setLinkTargetTask(null); void loadLinks(); setToast('Связь добавлена'); }}
         />
       )}
     </>
