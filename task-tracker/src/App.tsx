@@ -177,7 +177,7 @@ function AppContent() {
             onBack={() => setView('dashboard')}
           />
         )}
-        {view === 'objects' && <ObjectsView addresses={addresses} />}
+        {view === 'objects' && <ObjectsView addresses={addresses} tasks={visibleTasks} meetings={visibleMeetings} />}
         {view === 'users' && profile?.role === 'admin' && (
           <UsersView profiles={profiles} onReload={loadAllData} />
         )}
@@ -187,6 +187,7 @@ function AppContent() {
             addresses={addresses}
             tasks={visibleTasks}
             profiles={profiles}
+            meetings={visibleMeetings}
             onBack={() => setView('dashboard')}
             onReload={loadAllData}
           />

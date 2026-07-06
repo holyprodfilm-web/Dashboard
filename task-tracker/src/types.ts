@@ -40,6 +40,24 @@ export interface Address {
   [key: string]: string | undefined;
 }
 
+export interface MeetingAttachment {
+  id: number;
+  meeting_id: number;
+  file_name: string;
+  file_path: string;
+  file_size?: number;
+  uploaded_by?: string;
+  created_at?: string;
+}
+
+export interface TaskLink {
+  id: number;
+  from_task_id: number;
+  to_task_id: number;
+  object_uin: string;
+  created_at?: string;
+}
+
 export const ROLE_LABELS: Record<string, string> = {
   admin: 'Администратор',
   manager: 'Руководитель проекта',
