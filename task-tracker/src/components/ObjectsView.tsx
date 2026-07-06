@@ -196,21 +196,21 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                 Это действие необратимо.
               </p>
               {linkedTaskCount > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 space-y-2">
+                <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 space-y-2">
                   <div className="flex items-start gap-2.5">
-                    <GitBranch size={15} className="text-amber-600 mt-0.5 shrink-0" />
-                    <p className="text-sm text-amber-800">
-                      <span className="font-semibold">Внимание:</span> с этим объектом связано{' '}
+                    <GitBranch size={15} className="text-red-600 mt-0.5 shrink-0" />
+                    <p className="text-sm text-red-800">
+                      <span className="font-semibold">Удаление заблокировано:</span> с этим объектом связано{' '}
                       <span className="font-semibold">{linkedTaskCount}</span>{' '}
                       {linkedTaskCount === 1 ? 'поручение' : linkedTaskCount >= 2 && linkedTaskCount <= 4 ? 'поручения' : 'поручений'}.
-                      {' '}После удаления они останутся без привязки к объекту.
+                      {' '}Перед удалением объекта необходимо снять или переназначить все связанные поручения.
                     </p>
                   </div>
                   <ul className="space-y-1 pl-1">
                     {visibleTasks.map(task => {
                       const sc = STATUS_CONFIG[task.status];
                       return (
-                        <li key={task.id} className="flex items-center gap-2 text-xs text-amber-900">
+                        <li key={task.id} className="flex items-center gap-2 text-xs text-red-900">
                           <span className={`px-1.5 py-0.5 rounded-md font-medium shrink-0 ${sc?.bg ?? 'bg-slate-100'} ${sc?.color ?? 'text-slate-700'}`}>
                             {sc?.label ?? task.status}
                           </span>
@@ -219,7 +219,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                       );
                     })}
                     {overflowCount > 0 && (
-                      <li className="text-xs text-amber-700 pl-1">и ещё {overflowCount}…</li>
+                      <li className="text-xs text-red-700 pl-1">и ещё {overflowCount}…</li>
                     )}
                   </ul>
                 </div>
@@ -239,8 +239,9 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                 </button>
                 <button
                   onClick={handleDelete}
-                  disabled={deleting}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition text-sm font-medium disabled:opacity-60"
+                  disabled={deleting || linkedTaskCount > 0}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={linkedTaskCount > 0 ? 'Снимите все поручения перед удалением' : undefined}
                 >
                   {deleting ? 'Удаление...' : 'Удалить'}
                 </button>
