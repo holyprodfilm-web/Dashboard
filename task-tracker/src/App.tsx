@@ -49,11 +49,16 @@ function AppContent() {
   const [roleChangeToast, setRoleChangeToast] = useState<string | null>(null);
   const hadErrorRef = useRef(false);
   const currentRoleRef = useRef<string | null>(null);
+  const currentDistrictsRef = useRef<string[] | null | undefined>(undefined);
 
-  // Keep currentRoleRef in sync so the realtime handler can compare old vs new role
+  // Keep currentRoleRef and currentDistrictsRef in sync so the realtime handler can compare old vs new values
   useEffect(() => {
     currentRoleRef.current = profile?.role ?? null;
   }, [profile?.role]);
+
+  useEffect(() => {
+    currentDistrictsRef.current = profile?.districts;
+  }, [profile?.districts]);
 
   // Redirect away from admin-only views if the current user's role changes
   useEffect(() => {
@@ -195,6 +200,14 @@ function AppContent() {
             const oldRole = currentRoleRef.current;
             if (newRole && oldRole && newRole !== oldRole) {
               setRoleChangeToast(`Ваша роль изменена на «${ROLE_LABELS[newRole] ?? newRole}»`);
+            }
+            const newDistricts: string[] | null = (payload.new as Profile).districts ?? null;
+            const oldDistricts = currentDistrictsRef.current ?? null;
+            const districtsChanged =
+              JSON.stringify([...(oldDistricts ?? [])].sort()) !==
+              JSON.stringify([...(newDistricts ?? [])].sort());
+            if (districtsChanged && currentDistrictsRef.current !== undefined) {
+              setRoleChangeToast('Ваши районы изменены администратором');
             }
             void reloadProfile();
           }
