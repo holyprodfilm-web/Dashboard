@@ -219,9 +219,9 @@ export default function UsersView({ profiles, rolePermissions, onReload }: Users
               </thead>
               <tbody>
                 {MODULES_CONFIG.map(mod => (
-                  <>
+                  <React.Fragment key={mod.id}>
                     {/* Module access row */}
-                    <tr key={mod.id} className="border-t border-slate-100 bg-slate-50/40">
+                    <tr className="border-t border-slate-100 bg-slate-50/40">
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-2 font-semibold text-slate-800">
                           <ChevronRight size={14} className="text-slate-400 shrink-0" />
@@ -315,7 +315,7 @@ export default function UsersView({ profiles, rolePermissions, onReload }: Users
                         })}
                       </tr>
                     ))}
-                  </>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
