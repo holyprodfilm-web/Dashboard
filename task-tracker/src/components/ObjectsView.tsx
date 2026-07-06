@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Search, Building2, User, Calendar, Tag, GitBranch, Upload, Trash2 } from 'lucide-react';
+import { Search, Building2, User, Calendar, Tag, GitBranch, Upload, Trash2, ClipboardList } from 'lucide-react';
 import type { Address, Task, Meeting } from '../types';
 import { STATUS_CONFIG } from '../types';
+import { getAutoStatus } from '../utils';
 import ObjectDetailModal from './ObjectDetailModal';
 import AddressUploadModal from './AddressUploadModal';
 import { supabase } from '../lib/supabase';
@@ -21,6 +22,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
   const [deleteTarget, setDeleteTarget] = useState<Address | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [selectedFocusTaskId, setSelectedFocusTaskId] = useState<number | null>(null);
   const [deleteDialogDetailAddress, setDeleteDialogDetailAddress] = useState<Address | null>(null);
   const [deleteDialogFocusTaskId, setDeleteDialogFocusTaskId] = useState<number | null>(null);
 
@@ -48,7 +50,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
     (a["Руководитель проекта"] || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const taskCountByUin = (uin: string) => tasks.filter(t => t.object_uin === uin).length;
+  const tasksByUin = (uin: string) => tasks.filter(t => t.object_uin === uin);
 
   return (
     <>
@@ -80,7 +82,11 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
 
       <div className="grid gap-3">
         {filtered.slice(0, 100).map((addr) => {
-          const tCount = taskCountByUin(addr["Код УИН"]);
+          const addrTasks = tasksByUin(addr["Код УИН"]);
+          const tCount = addrTasks.length;
+          const SHOW_MAX = 3;
+          const visibleTasks = addrTasks.slice(0, SHOW_MAX);
+          const overflowCount = tCount - SHOW_MAX;
           return (
             <div
               key={addr["Код УИН"]}
@@ -89,7 +95,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
               <div className="flex items-start justify-between gap-4">
                 <div
                   className="flex-1 min-w-0 cursor-pointer"
-                  onClick={() => setSelectedAddress(addr)}
+                  onClick={() => { setSelectedAddress(addr); setSelectedFocusTaskId(null); }}
                 >
                   <div className="flex flex-wrap items-center gap-2 mb-2">
                     <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-mono font-semibold">
@@ -122,10 +128,13 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {tCount > 0 && (
-                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-500">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelectedAddress(addr); setSelectedFocusTaskId(null); }}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-500 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition"
+                    >
                       <GitBranch size={13} />
                       {tCount} поруч.
-                    </div>
+                    </button>
                   )}
                   {isAdmin && (
                     <button
@@ -138,6 +147,38 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                   )}
                 </div>
               </div>
+
+              {/* Clickable task chips */}
+              {tCount > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+                  {visibleTasks.map(task => {
+                    const status = getAutoStatus(task.status, task.deadline);
+                    const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['new'];
+                    return (
+                      <button
+                        key={task.id}
+                        onClick={(e) => { e.stopPropagation(); setSelectedAddress(addr); setSelectedFocusTaskId(task.id); }}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition text-xs text-left group/chip"
+                        title={task.description}
+                      >
+                        <ClipboardList size={11} className="text-slate-400 group-hover/chip:text-blue-500 shrink-0" />
+                        <span className={`px-1.5 py-0.5 rounded-md font-medium shrink-0 ${cfg.bg} ${cfg.color}`}>
+                          {cfg.label}
+                        </span>
+                        <span className="text-slate-600 truncate max-w-[180px]">{task.description}</span>
+                      </button>
+                    );
+                  })}
+                  {overflowCount > 0 && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelectedAddress(addr); setSelectedFocusTaskId(null); }}
+                      className="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-300 transition text-xs text-slate-500"
+                    >
+                      +{overflowCount} ещё…
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -160,7 +201,8 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
           address={selectedAddress}
           allTasks={tasks}
           allMeetings={meetings}
-          onClose={() => setSelectedAddress(null)}
+          focusTaskId={selectedFocusTaskId ?? undefined}
+          onClose={() => { setSelectedAddress(null); setSelectedFocusTaskId(null); }}
         />
       )}
 
