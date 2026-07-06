@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, ClipboardList, GitBranch, Building2, Calendar, User, Tag, Loader2, Link2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { usePermissions } from '../lib/usePermissions';
@@ -11,15 +11,18 @@ interface Props {
   address: Address;
   allTasks: Task[];
   allMeetings: Meeting[];
+  focusTaskId?: number;
   onClose: () => void;
 }
 
-export default function ObjectDetailModal({ address, allTasks, allMeetings, onClose }: Props) {
+export default function ObjectDetailModal({ address, allTasks, allMeetings, focusTaskId, onClose }: Props) {
   const uin = address["Код УИН"];
   const { canDelete } = usePermissions();
   const [tab, setTab] = useState<'tasks' | 'graph'>('tasks');
   const [links, setLinks] = useState<TaskLink[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(true);
+  const [highlightedTaskId, setHighlightedTaskId] = useState<number | null>(focusTaskId ?? null);
+  const taskRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const objectTasks = allTasks.filter(t => t.object_uin === uin);
   const meetingMap = new Map(allMeetings.map(m => [m.id, m]));
@@ -42,6 +45,18 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, onCl
   };
 
   useEffect(() => { void loadLinks(); }, [uin]);
+
+  // Scroll to and highlight the focused task after render
+  useEffect(() => {
+    if (!focusTaskId) return;
+    const el = taskRefs.current[focusTaskId];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    setHighlightedTaskId(focusTaskId);
+    const timer = setTimeout(() => setHighlightedTaskId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [focusTaskId]);
 
   const deleteLink = async (linkId: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -147,7 +162,15 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, onCl
                             const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['new'];
                             const taskLinks = getLinksForTask(task.id);
                             return (
-                              <div key={task.id} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                              <div
+                                key={task.id}
+                                ref={(el) => { taskRefs.current[task.id] = el; }}
+                                className={`p-4 rounded-xl border transition-all duration-700 ${
+                                  highlightedTaskId === task.id
+                                    ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-300 shadow-md'
+                                    : 'bg-slate-50 border-slate-100'
+                                }`}
+                              >
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1.5">

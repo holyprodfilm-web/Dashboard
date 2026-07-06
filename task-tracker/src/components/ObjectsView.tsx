@@ -22,6 +22,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [deleteDialogDetailAddress, setDeleteDialogDetailAddress] = useState<Address | null>(null);
+  const [deleteDialogFocusTaskId, setDeleteDialogFocusTaskId] = useState<number | null>(null);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -214,7 +215,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                         <li key={task.id}>
                           <button
                             type="button"
-                            onClick={() => setDeleteDialogDetailAddress(deleteTarget)}
+                            onClick={() => { setDeleteDialogDetailAddress(deleteTarget); setDeleteDialogFocusTaskId(task.id); }}
                             className="w-full flex items-center gap-2 text-xs text-red-900 hover:bg-red-100 rounded-lg px-1.5 py-1 transition text-left group/task"
                             title="Открыть карточку объекта"
                           >
@@ -265,7 +266,8 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
           address={deleteDialogDetailAddress}
           allTasks={tasks}
           allMeetings={meetings}
-          onClose={() => setDeleteDialogDetailAddress(null)}
+          focusTaskId={deleteDialogFocusTaskId ?? undefined}
+          onClose={() => { setDeleteDialogDetailAddress(null); setDeleteDialogFocusTaskId(null); }}
         />
       )}
     </>
