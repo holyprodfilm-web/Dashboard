@@ -45,6 +45,7 @@ function AppContent() {
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
   const [showReconnectToast, setShowReconnectToast] = useState(false);
   const [reconnectRefreshing, setReconnectRefreshing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const hadErrorRef = useRef(false);
 
   // Sync ?kpi= URL param with the external status filter (for shareability)
@@ -344,10 +345,16 @@ function AppContent() {
             <AlertCircle size={18} className="shrink-0" />
             <span>Ошибка загрузки данных: {dataError}</span>
             <button
-              onClick={loadAllData}
-              className="ml-auto px-3 py-1 bg-[#FFD6DC] hover:bg-[#FFB3BF] rounded-lg text-xs font-medium transition"
+              onClick={async () => {
+                setRetrying(true);
+                await loadAllData();
+                setRetrying(false);
+              }}
+              disabled={retrying}
+              className="ml-auto flex items-center gap-1.5 px-3 py-1 bg-[#FFD6DC] hover:bg-[#FFB3BF] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition"
             >
-              Повторить
+              {retrying && <Loader2 size={12} className="animate-spin" />}
+              {retrying ? 'Загрузка…' : 'Повторить'}
             </button>
           </div>
         )}
