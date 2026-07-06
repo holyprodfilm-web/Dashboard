@@ -98,14 +98,14 @@ function AppContent() {
     }
   }, [user, loadAllData]);
 
-  // Real-time subscription: keep tasks in sync so health badge counts update live
+  // Real-time subscription: keep tasks, meetings and addresses in sync
   useEffect(() => {
     if (!user) return;
 
     setRealtimeStatus('connecting');
 
     const channel = supabase
-      .channel('tasks-live')
+      .channel('app-live')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks' },
@@ -121,6 +121,46 @@ function AppContent() {
             }
             if (payload.eventType === 'DELETE') {
               return prev.filter((t) => t.id !== (payload.old as Task).id);
+            }
+            return prev;
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'meetings' },
+        (payload) => {
+          setMeetings((prev) => {
+            if (payload.eventType === 'INSERT') {
+              return [payload.new as Meeting, ...prev];
+            }
+            if (payload.eventType === 'UPDATE') {
+              return prev.map((m) =>
+                m.id === (payload.new as Meeting).id ? (payload.new as Meeting) : m
+              );
+            }
+            if (payload.eventType === 'DELETE') {
+              return prev.filter((m) => m.id !== (payload.old as Meeting).id);
+            }
+            return prev;
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'addresses' },
+        (payload) => {
+          setAddresses((prev) => {
+            if (payload.eventType === 'INSERT') {
+              return [...prev, payload.new as Address];
+            }
+            if (payload.eventType === 'UPDATE') {
+              return prev.map((a) =>
+                a.id === (payload.new as Address).id ? (payload.new as Address) : a
+              );
+            }
+            if (payload.eventType === 'DELETE') {
+              return prev.filter((a) => a.id !== (payload.old as Address).id);
             }
             return prev;
           });
