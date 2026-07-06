@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search, Building2, User, Calendar, Tag, GitBranch, Upload, Trash2 } from 'lucide-react';
 import type { Address, Task, Meeting } from '../types';
+import { STATUS_CONFIG } from '../types';
 import ObjectDetailModal from './ObjectDetailModal';
 import AddressUploadModal from './AddressUploadModal';
 import { supabase } from '../lib/supabase';
@@ -172,7 +173,11 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
       )}
 
       {deleteTarget && (() => {
-        const linkedTaskCount = taskCountByUin(deleteTarget['Код УИН']);
+        const linkedTasks = tasks.filter(t => t.object_uin === deleteTarget['Код УИН']);
+        const linkedTaskCount = linkedTasks.length;
+        const SHOW_MAX = 5;
+        const visibleTasks = linkedTasks.slice(0, SHOW_MAX);
+        const overflowCount = linkedTaskCount - SHOW_MAX;
         return (
           <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
@@ -191,14 +196,32 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                 Это действие необратимо.
               </p>
               {linkedTaskCount > 0 && (
-                <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                  <GitBranch size={15} className="text-amber-600 mt-0.5 shrink-0" />
-                  <p className="text-sm text-amber-800">
-                    <span className="font-semibold">Внимание:</span> с этим объектом связано{' '}
-                    <span className="font-semibold">{linkedTaskCount}</span>{' '}
-                    {linkedTaskCount === 1 ? 'поручение' : linkedTaskCount >= 2 && linkedTaskCount <= 4 ? 'поручения' : 'поручений'}.
-                    {' '}После удаления они останутся без привязки к объекту.
-                  </p>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 space-y-2">
+                  <div className="flex items-start gap-2.5">
+                    <GitBranch size={15} className="text-amber-600 mt-0.5 shrink-0" />
+                    <p className="text-sm text-amber-800">
+                      <span className="font-semibold">Внимание:</span> с этим объектом связано{' '}
+                      <span className="font-semibold">{linkedTaskCount}</span>{' '}
+                      {linkedTaskCount === 1 ? 'поручение' : linkedTaskCount >= 2 && linkedTaskCount <= 4 ? 'поручения' : 'поручений'}.
+                      {' '}После удаления они останутся без привязки к объекту.
+                    </p>
+                  </div>
+                  <ul className="space-y-1 pl-1">
+                    {visibleTasks.map(task => {
+                      const sc = STATUS_CONFIG[task.status];
+                      return (
+                        <li key={task.id} className="flex items-center gap-2 text-xs text-amber-900">
+                          <span className={`px-1.5 py-0.5 rounded-md font-medium shrink-0 ${sc?.bg ?? 'bg-slate-100'} ${sc?.color ?? 'text-slate-700'}`}>
+                            {sc?.label ?? task.status}
+                          </span>
+                          <span className="truncate">{task.description}</span>
+                        </li>
+                      );
+                    })}
+                    {overflowCount > 0 && (
+                      <li className="text-xs text-amber-700 pl-1">и ещё {overflowCount}…</li>
+                    )}
+                  </ul>
                 </div>
               )}
               {deleteError && (
