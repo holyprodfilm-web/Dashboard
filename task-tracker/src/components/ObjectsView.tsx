@@ -1,17 +1,21 @@
 import { useState } from 'react';
-import { Search, Building2, User, Calendar, Tag, GitBranch } from 'lucide-react';
+import { Search, Building2, User, Calendar, Tag, GitBranch, Upload } from 'lucide-react';
 import type { Address, Task, Meeting } from '../types';
 import ObjectDetailModal from './ObjectDetailModal';
+import AddressUploadModal from './AddressUploadModal';
 
 interface ObjectsViewProps {
   addresses: Address[];
   tasks: Task[];
   meetings: Meeting[];
+  isAdmin?: boolean;
+  onReload?: () => void;
 }
 
-export default function ObjectsView({ addresses, tasks, meetings }: ObjectsViewProps) {
+export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onReload }: ObjectsViewProps) {
   const [search, setSearch] = useState('');
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
 
   const filtered = addresses.filter((a) =>
     a["Код УИН"].toLowerCase().includes(search.toLowerCase()) ||
@@ -24,9 +28,20 @@ export default function ObjectsView({ addresses, tasks, meetings }: ObjectsViewP
 
   return (
     <>
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold text-slate-900 mb-1">Справочник объектов</h2>
-        <p className="text-slate-500">Всего объектов: {addresses.length}</p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-slate-900 mb-1">Справочник объектов</h2>
+          <p className="text-slate-500">Всего объектов: {addresses.length}</p>
+        </div>
+        {isAdmin && (
+          <button
+            onClick={() => setShowUpload(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition text-sm font-medium shadow-sm shrink-0"
+          >
+            <Upload size={16} />
+            Загрузить CSV
+          </button>
+        )}
       </div>
 
       <div className="mb-6 relative">
@@ -109,6 +124,16 @@ export default function ObjectsView({ addresses, tasks, meetings }: ObjectsViewP
           allTasks={tasks}
           allMeetings={meetings}
           onClose={() => setSelectedAddress(null)}
+        />
+      )}
+
+      {showUpload && (
+        <AddressUploadModal
+          onClose={() => setShowUpload(false)}
+          onUploaded={() => {
+            setShowUpload(false);
+            onReload?.();
+          }}
         />
       )}
     </>

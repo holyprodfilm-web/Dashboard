@@ -186,7 +186,15 @@ function AppContent() {
             onBack={() => setView('dashboard')}
           />
         )}
-        {view === 'objects' && <ObjectsView addresses={addresses} tasks={visibleTasks} meetings={visibleMeetings} />}
+        {view === 'objects' && (
+          <ObjectsView
+            addresses={addresses}
+            tasks={visibleTasks}
+            meetings={visibleMeetings}
+            isAdmin={profile?.role === 'admin'}
+            onReload={loadAllData}
+          />
+        )}
         {view === 'users' && profile?.role === 'admin' && (
           <UsersView profiles={profiles} onReload={loadAllData} />
         )}
