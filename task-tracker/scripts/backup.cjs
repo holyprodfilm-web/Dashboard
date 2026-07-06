@@ -31,6 +31,10 @@ const TABLES = [
   'meeting_attachments',
   'profiles',
   'role_permissions',
+  'nts_entries',
+  'nts_sessions',
+  'nts_doc_rounds',
+  'nts_checklist_responses',
 ];
 
 function mgmtQuery(sql) {
