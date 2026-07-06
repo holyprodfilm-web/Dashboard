@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, User, Mail, Shield, Key, Save, Loader2, Check, Eye, EyeOff } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, User, Mail, Shield, Key, Save, Loader2, Check, Eye, EyeOff, MapPin, Search } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { ROLE_LABELS, ROLE_COLORS } from '../types';
@@ -25,12 +25,56 @@ export default function UserProfileModal({ onClose }: Props) {
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [passwordError, setPasswordError] = useState('');
 
+  // Districts (managers only)
+  const [allDistricts, setAllDistricts] = useState<string[]>([]);
+  const [selectedDistricts, setSelectedDistricts] = useState<string[]>(profile?.districts ?? []);
+  const [districtSearch, setDistrictSearch] = useState('');
+  const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [savingDistricts, setSavingDistricts] = useState(false);
+  const [districtsSaved, setDistrictsSaved] = useState(false);
+  const [districtsError, setDistrictsError] = useState('');
+
+  const isManager = profile?.role === 'manager';
+  const isAdmin = profile?.role === 'admin';
+
   const initials = (profile?.full_name || user?.email || '?')
     .split(' ')
     .map(w => w[0])
     .join('')
     .slice(0, 2)
     .toUpperCase();
+
+  // Load distinct districts from addresses table (for managers and admins)
+  useEffect(() => {
+    if (!isManager && !isAdmin) return;
+    setLoadingDistricts(true);
+    supabase
+      .from('addresses')
+      .select('"Городской округ"')
+      .then(({ data, error }) => {
+        setLoadingDistricts(false);
+        if (error || !data) return;
+        const unique = Array.from(
+          new Set(
+            data
+              .map(r => r['Городской округ'] as string)
+              .filter(Boolean)
+          )
+        ).sort((a, b) => a.localeCompare(b, 'ru'));
+        setAllDistricts(unique);
+      });
+  }, [isManager, isAdmin]);
+
+  // Sync selectedDistricts when profile changes
+  useEffect(() => {
+    setSelectedDistricts(profile?.districts ?? []);
+  }, [profile?.districts]);
+
+  const toggleDistrict = (d: string) => {
+    setSelectedDistricts(prev =>
+      prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]
+    );
+  };
 
   const handleSaveName = async () => {
     if (!fullName.trim()) { setNameError('Имя не может быть пустым'); return; }
@@ -67,6 +111,30 @@ export default function UserProfileModal({ onClose }: Props) {
     }
   };
 
+  const handleSaveDistricts = async () => {
+    setSavingDistricts(true);
+    setDistrictsError('');
+    const { error } = await supabase
+      .from('profiles')
+      .update({ districts: selectedDistricts })
+      .eq('id', user!.id);
+    setSavingDistricts(false);
+    if (error) {
+      setDistrictsError('Ошибка сохранения: ' + error.message);
+    } else {
+      await reloadProfile();
+      setDistrictsSaved(true);
+      setTimeout(() => setDistrictsSaved(false), 2500);
+    }
+  };
+
+  const districtsChanged = JSON.stringify([...(profile?.districts || [])].sort()) !==
+    JSON.stringify([...selectedDistricts].sort());
+
+  const filteredDistricts = allDistricts.filter(d =>
+    d.toLowerCase().includes(districtSearch.toLowerCase())
+  );
+
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
@@ -85,14 +153,14 @@ export default function UserProfileModal({ onClose }: Props) {
             <div>
               <h2 className="text-xl font-bold">{profile?.full_name || 'Пользователь'}</h2>
               <p className="text-sm text-white/80">{user?.email}</p>
-              <span className={`mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-medium bg-white/20 text-white`}>
+              <span className="mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-medium bg-white/20 text-white">
                 {ROLE_LABELS[profile?.role || 'guest']}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        <div className="p-6 space-y-6 max-h-[72vh] overflow-y-auto">
           {/* Profile info */}
           <section>
             <h3 className="text-sm font-semibold text-[#8A4C08] uppercase tracking-wide mb-3 flex items-center gap-2">
@@ -121,7 +189,7 @@ export default function UserProfileModal({ onClose }: Props) {
                 {nameError && <p className="text-xs text-[#E93A58] mt-1">{nameError}</p>}
               </div>
 
-              {/* Email — read-only */}
+              {/* Email */}
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Email</label>
                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-[#EDDED8]/40 text-sm text-slate-700">
@@ -130,7 +198,7 @@ export default function UserProfileModal({ onClose }: Props) {
                 </div>
               </div>
 
-              {/* Role — read-only */}
+              {/* Role */}
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Роль в системе</label>
                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-[#EDDED8]/40 text-sm">
@@ -143,6 +211,124 @@ export default function UserProfileModal({ onClose }: Props) {
               </div>
             </div>
           </section>
+
+          {/* Districts — managers and admins only */}
+          {(isManager || isAdmin) && (
+            <>
+              <div className="border-t border-slate-100" />
+              <section>
+                <div className="flex items-start justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-[#8A4C08] uppercase tracking-wide flex items-center gap-2">
+                    <MapPin size={14} /> Закреплённые округа
+                  </h3>
+                  <span className="text-xs text-slate-400">
+                    {selectedDistricts.length > 0
+                      ? `Выбрано: ${selectedDistricts.length}`
+                      : 'Не выбрано'}
+                  </span>
+                </div>
+
+                {/* Selected badges */}
+                {selectedDistricts.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {[...selectedDistricts].sort((a, b) => a.localeCompare(b, 'ru')).map(d => (
+                      <span
+                        key={d}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-lg text-xs font-medium"
+                      >
+                        {d}
+                        <button
+                          onClick={() => toggleDistrict(d)}
+                          className="hover:text-[#E93A58] transition ml-0.5"
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {loadingDistricts ? (
+                  <div className="flex items-center gap-2 text-slate-400 text-sm py-3">
+                    <Loader2 size={14} className="animate-spin" /> Загрузка округов…
+                  </div>
+                ) : (
+                  <>
+                    {/* Search */}
+                    <div className="relative mb-2">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        value={districtSearch}
+                        onChange={e => setDistrictSearch(e.target.value)}
+                        placeholder="Поиск округа…"
+                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none text-sm transition"
+                      />
+                    </div>
+
+                    {/* Checklist */}
+                    <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
+                      {filteredDistricts.length === 0 ? (
+                        <p className="text-xs text-slate-400 text-center py-4">
+                          {districtSearch ? 'Ничего не найдено' : 'Округа не загружены'}
+                        </p>
+                      ) : (
+                        filteredDistricts.map(d => {
+                          const checked = selectedDistricts.includes(d);
+                          return (
+                            <label
+                              key={d}
+                              className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition text-sm select-none
+                                ${checked ? 'bg-teal-50/60' : 'hover:bg-slate-50'}`}
+                            >
+                              <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition
+                                ${checked
+                                  ? 'bg-teal-600 border-teal-600'
+                                  : 'border-slate-300 bg-white'}`}
+                              >
+                                {checked && <Check size={10} className="text-white" strokeWidth={3} />}
+                              </div>
+                              <input
+                                type="checkbox"
+                                className="sr-only"
+                                checked={checked}
+                                onChange={() => toggleDistrict(d)}
+                              />
+                              <span className={checked ? 'text-teal-800 font-medium' : 'text-slate-700'}>{d}</span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Bulk actions */}
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => setSelectedDistricts([...allDistricts])}
+                        className="text-xs text-teal-600 hover:underline"
+                      >Выбрать все</button>
+                      <span className="text-slate-300">·</span>
+                      <button
+                        onClick={() => setSelectedDistricts([])}
+                        className="text-xs text-slate-500 hover:underline"
+                      >Снять все</button>
+                    </div>
+                  </>
+                )}
+
+                {districtsError && <p className="text-xs text-[#E93A58] mt-2">{districtsError}</p>}
+
+                <button
+                  onClick={handleSaveDistricts}
+                  disabled={savingDistricts || !districtsChanged}
+                  className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium transition disabled:opacity-40"
+                >
+                  {savingDistricts
+                    ? <><Loader2 size={14} className="animate-spin" /> Сохранение…</>
+                    : districtsSaved
+                    ? <><Check size={14} /> Сохранено</>
+                    : <><Save size={14} /> Сохранить округа</>}
+                </button>
+              </section>
+            </>
+          )}
 
           <div className="border-t border-slate-100" />
 
@@ -206,9 +392,25 @@ export default function UserProfileModal({ onClose }: Props) {
               О системе
             </h3>
             <div className="bg-[#EDDED8]/40 rounded-xl p-4 text-xs text-slate-500 space-y-1">
-              <div className="flex justify-between"><span>Система</span><span className="font-medium text-slate-700">АРМ мониторинга теплоснабжения МО</span></div>
-              <div className="flex justify-between"><span>User ID</span><span className="font-mono text-slate-600">{user?.id?.slice(0, 8)}…</span></div>
-              <div className="flex justify-between"><span>Последний вход</span><span className="font-medium text-slate-700">{user?.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</span></div>
+              <div className="flex justify-between">
+                <span>Система</span>
+                <span className="font-medium text-slate-700">АРМ мониторинга теплоснабжения МО</span>
+              </div>
+              <div className="flex justify-between">
+                <span>User ID</span>
+                <span className="font-mono text-slate-600">{user?.id?.slice(0, 8)}…</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Последний вход</span>
+                <span className="font-medium text-slate-700">
+                  {user?.last_sign_in_at
+                    ? new Date(user.last_sign_in_at).toLocaleDateString('ru-RU', {
+                        day: '2-digit', month: 'long', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
+                      })
+                    : '—'}
+                </span>
+              </div>
             </div>
           </section>
         </div>

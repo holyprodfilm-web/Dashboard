@@ -7,6 +7,7 @@ export interface Profile {
   email: string;
   full_name: string;
   role: 'admin' | 'manager' | 'contractor' | 'guest';
+  districts?: string[] | null;
   created_at?: string;
 }
 
