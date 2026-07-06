@@ -170,6 +170,26 @@ function AppContent() {
           });
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        (payload) => {
+          setProfiles((prev) => {
+            if (payload.eventType === 'INSERT') {
+              return [...prev, payload.new as Profile];
+            }
+            if (payload.eventType === 'UPDATE') {
+              return prev.map((p) =>
+                p.id === (payload.new as Profile).id ? (payload.new as Profile) : p
+              );
+            }
+            if (payload.eventType === 'DELETE') {
+              return prev.filter((p) => p.id !== (payload.old as Profile).id);
+            }
+            return prev;
+          });
+        }
+      )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           if (hadErrorRef.current) {
