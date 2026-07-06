@@ -171,47 +171,61 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
         />
       )}
 
-      {deleteTarget && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 rounded-xl">
-                <Trash2 size={20} className="text-red-600" />
+      {deleteTarget && (() => {
+        const linkedTaskCount = taskCountByUin(deleteTarget['Код УИН']);
+        return (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 rounded-xl">
+                  <Trash2 size={20} className="text-red-600" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">Удалить объект?</h3>
               </div>
-              <h3 className="text-lg font-bold text-slate-900">Удалить объект?</h3>
-            </div>
-            <p className="text-slate-600 text-sm">
-              Вы собираетесь удалить объект{' '}
-              <span className="font-semibold text-slate-900">
-                {deleteTarget['Наименование объекта']}
-              </span>{' '}
-              (УИН: <span className="font-mono text-blue-700">{deleteTarget['Код УИН']}</span>).
-              Это действие необратимо.
-            </p>
-            {deleteError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-                {deleteError}
+              <p className="text-slate-600 text-sm">
+                Вы собираетесь удалить объект{' '}
+                <span className="font-semibold text-slate-900">
+                  {deleteTarget['Наименование объекта']}
+                </span>{' '}
+                (УИН: <span className="font-mono text-blue-700">{deleteTarget['Код УИН']}</span>).
+                Это действие необратимо.
               </p>
-            )}
-            <div className="flex justify-end gap-3 pt-1">
-              <button
-                onClick={() => { setDeleteTarget(null); setDeleteError(''); }}
-                disabled={deleting}
-                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl transition text-sm font-medium disabled:opacity-50"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition text-sm font-medium disabled:opacity-60"
-              >
-                {deleting ? 'Удаление...' : 'Удалить'}
-              </button>
+              {linkedTaskCount > 0 && (
+                <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                  <GitBranch size={15} className="text-amber-600 mt-0.5 shrink-0" />
+                  <p className="text-sm text-amber-800">
+                    <span className="font-semibold">Внимание:</span> с этим объектом связано{' '}
+                    <span className="font-semibold">{linkedTaskCount}</span>{' '}
+                    {linkedTaskCount === 1 ? 'поручение' : linkedTaskCount >= 2 && linkedTaskCount <= 4 ? 'поручения' : 'поручений'}.
+                    {' '}После удаления они останутся без привязки к объекту.
+                  </p>
+                </div>
+              )}
+              {deleteError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                  {deleteError}
+                </p>
+              )}
+              <div className="flex justify-end gap-3 pt-1">
+                <button
+                  onClick={() => { setDeleteTarget(null); setDeleteError(''); }}
+                  disabled={deleting}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl transition text-sm font-medium disabled:opacity-50"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition text-sm font-medium disabled:opacity-60"
+                >
+                  {deleting ? 'Удаление...' : 'Удалить'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </>
   );
 }
