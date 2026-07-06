@@ -17,8 +17,8 @@ const PERMISSIONS = {
     canViewAll: false,
   },
   analyst: {
-    canCreate: false,
-    canEdit: false,
+    canCreate: true,
+    canEdit: true,
     canDelete: false,
     canManageUsers: false,
     canViewAll: true,

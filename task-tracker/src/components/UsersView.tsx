@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Users, Shield, Loader2, Settings2, Check, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile, RolePermission } from '../types';
@@ -219,7 +219,7 @@ export default function UsersView({ profiles, rolePermissions, onReload }: Users
               </thead>
               <tbody>
                 {MODULES_CONFIG.map(mod => (
-                  <React.Fragment key={mod.id}>
+                  <Fragment key={mod.id}>
                     {/* Module access row */}
                     <tr className="border-t border-slate-100 bg-slate-50/40">
                       <td className="px-6 py-3">
@@ -315,7 +315,7 @@ export default function UsersView({ profiles, rolePermissions, onReload }: Users
                         })}
                       </tr>
                     ))}
-                  </React.Fragment>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
