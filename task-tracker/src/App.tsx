@@ -12,9 +12,10 @@ import LoginPage from './components/LoginPage';
 import HomePage from './components/HomePage';
 import ManagerTasksView from './components/ManagerTasksView';
 import UsersView from './components/UsersView';
+import BootstrapAdminBanner from './components/BootstrapAdminBanner';
 
 function AppContent() {
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, profile, loading, signOut, reloadProfile } = useAuth();
   const [view, setView] = useState<View>('home');
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -128,6 +129,14 @@ function AppContent() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 md:px-8 py-8">
+        <BootstrapAdminBanner
+          currentProfile={profile}
+          profiles={profiles}
+          onPromoted={async () => {
+            await reloadProfile();
+            await loadAllData();
+          }}
+        />
         {dataError && (
           <div className="mb-6 flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
             <AlertCircle size={18} className="shrink-0" />

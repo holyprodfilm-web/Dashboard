@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO profiles (id, email, full_name, role)
+  INSERT INTO public.profiles (id, email, full_name, role)
   VALUES (
     NEW.id,
     NEW.email,
@@ -54,12 +54,59 @@ BEGIN
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- =============================================================
+-- Bootstrap: назначение первого зарегистрированного пользователя
+-- администратором
+-- =============================================================
+-- Правила:
+--   1. Срабатывает только если в системе нет ни одного admin.
+--   2. Повышает только самого раннего пользователя (наименьший
+--      created_at в profiles).
+--   3. Атомарный UPDATE исключает гонку: два одновременных вызова
+--      не могут оба создать admin, потому что второй UPDATE не
+--      найдёт подходящей строки.
+-- SECURITY DEFINER + SET search_path = '' — защита от инъекций.
+CREATE OR REPLACE FUNCTION bootstrap_first_admin()
+RETURNS TEXT AS $$
+DECLARE
+  rows_updated INT;
+BEGIN
+  -- Одним атомарным UPDATE: обновляем строку только если
+  --   • вызывающий — самый ранний пользователь в profiles
+  --   • и в системе ещё нет ни одного admin
+  UPDATE public.profiles
+  SET role = 'admin'
+  WHERE id = auth.uid()
+    AND id = (
+      SELECT id FROM public.profiles
+      ORDER BY created_at ASC
+      LIMIT 1
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM public.profiles WHERE role = 'admin'
+    );
+
+  GET DIAGNOSTICS rows_updated = ROW_COUNT;
+
+  IF rows_updated = 1 THEN
+    RETURN 'ok';
+  END IF;
+
+  -- Выясняем причину отказа для понятного сообщения на фронте
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE role = 'admin') THEN
+    RETURN 'error: admin_exists';
+  END IF;
+
+  RETURN 'error: not_first_user';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = '';
 
 -- RLS
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
