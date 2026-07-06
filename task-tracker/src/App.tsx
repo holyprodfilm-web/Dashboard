@@ -17,6 +17,7 @@ import UsersView from './components/UsersView';
 import BootstrapAdminBanner from './components/BootstrapAdminBanner';
 import ClosureView from './components/ClosureView';
 import NtsView from './components/NtsView';
+import BackupViewer from './components/BackupViewer';
 import Toast from './components/Toast';
 
 function AppContent() {
@@ -508,6 +509,9 @@ function AppContent() {
             rolePermissions={rolePermissions}
             onReload={loadAllData}
           />
+        )}
+        {view === 'backups' && profile?.role === 'admin' && (
+          <BackupViewer />
         )}
         {showProfile && (
           <UserProfileModal onClose={() => setShowProfile(false)} />

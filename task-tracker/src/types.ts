@@ -1,4 +1,4 @@
-export type View = 'home' | 'dashboard' | 'managerTasks' | 'objects' | 'detail' | 'users' | 'closure' | 'nts';
+export type View = 'home' | 'dashboard' | 'managerTasks' | 'objects' | 'detail' | 'users' | 'closure' | 'nts' | 'backups';
 
 export type PaymentStatus = 'paid' | 'partial' | 'not_paid' | 'terminated';
 export type MogaeStatus = 'Заходили' | 'В МОГЭ' | 'Не заходили ни разу';

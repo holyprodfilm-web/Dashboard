@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { FileText, Building2, ArrowRight, Users, BarChart2, FlaskConical } from 'lucide-react';
+import { FileText, Building2, ArrowRight, Users, BarChart2, FlaskConical, DatabaseBackup } from 'lucide-react';
 
-type ModuleId = 'dashboard' | 'objects' | 'users' | 'closure' | 'nts';
+type ModuleId = 'dashboard' | 'objects' | 'users' | 'closure' | 'nts' | 'backups';
 
 interface Module {
   id: ModuleId;
@@ -66,6 +66,16 @@ const MODULES: Module[] = [
     bg: 'bg-purple-50',
     text: 'text-purple-600',
     hoverBorder: 'group-hover:border-purple-200',
+    adminOnly: true,
+  },
+  {
+    id: 'backups',
+    title: 'Резервные копии',
+    description: 'История ночных резервных копий: количество строк по таблицам, включая данные НТС.',
+    icon: <DatabaseBackup size={32} />,
+    bg: 'bg-teal-50',
+    text: 'text-teal-600',
+    hoverBorder: 'group-hover:border-teal-200',
     adminOnly: true,
   },
 ];
