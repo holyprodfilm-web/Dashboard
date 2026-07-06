@@ -24,7 +24,9 @@ interface ObjectsViewProps {
 }
 
 export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onReload, statusFilter, onClearFilter }: ObjectsViewProps) {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState<string>(
+    () => sessionStorage.getItem('objectsSearch') ?? ''
+  );
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Address | null>(null);
@@ -201,7 +203,12 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
         <input
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => {
+            const v = e.target.value;
+            setSearch(v);
+            if (v) sessionStorage.setItem('objectsSearch', v);
+            else sessionStorage.removeItem('objectsSearch');
+          }}
           placeholder="Поиск по УИН, названию, округу или руководителю..."
           className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition shadow-sm"
         />
