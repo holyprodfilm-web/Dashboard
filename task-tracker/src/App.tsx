@@ -44,6 +44,7 @@ function AppContent() {
   const [showProfile, setShowProfile] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
   const [showReconnectToast, setShowReconnectToast] = useState(false);
+  const [reconnectRefreshing, setReconnectRefreshing] = useState(false);
   const hadErrorRef = useRef(false);
 
   // Sync ?kpi= URL param with the external status filter (for shareability)
@@ -197,7 +198,8 @@ function AppContent() {
         if (status === 'SUBSCRIBED') {
           if (hadErrorRef.current) {
             setShowReconnectToast(true);
-            void loadAllData();
+            setReconnectRefreshing(true);
+            void loadAllData().finally(() => setReconnectRefreshing(false));
             hadErrorRef.current = false;
           }
           setRealtimeStatus('live');
@@ -215,7 +217,7 @@ function AppContent() {
     };
   }, [user, loadAllData]);
 
-  if (loading || (user && dataLoading)) {
+  if (loading || (user && dataLoading && !reconnectRefreshing)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <Loader2 className="animate-spin text-teal-600" size={40} />
@@ -269,11 +271,17 @@ function AppContent() {
               >
                 {realtimeStatus === 'live' && (
                   <>
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                    {reconnectRefreshing ? (
+                      <Loader2 className="animate-spin text-teal-500 shrink-0" size={14} />
+                    ) : (
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                      </span>
+                    )}
+                    <span className="text-xs font-medium text-emerald-600 hidden sm:inline">
+                      {reconnectRefreshing ? 'Обновление…' : 'Live'}
                     </span>
-                    <span className="text-xs font-medium text-emerald-600 hidden sm:inline">Live</span>
                   </>
                 )}
                 {realtimeStatus === 'error' && (
