@@ -46,7 +46,14 @@ function AppContent() {
   const [showReconnectToast, setShowReconnectToast] = useState(false);
   const [reconnectRefreshing, setReconnectRefreshing] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [roleChangeToast, setRoleChangeToast] = useState<string | null>(null);
   const hadErrorRef = useRef(false);
+  const currentRoleRef = useRef<string | null>(null);
+
+  // Keep currentRoleRef in sync so the realtime handler can compare old vs new role
+  useEffect(() => {
+    currentRoleRef.current = profile?.role ?? null;
+  }, [profile?.role]);
 
   // Redirect away from admin-only views if the current user's role changes
   useEffect(() => {
@@ -184,6 +191,11 @@ function AppContent() {
         { event: '*', schema: 'public', table: 'profiles' },
         (payload) => {
           if (payload.eventType === 'UPDATE' && user && (payload.new as Profile).id === user.id) {
+            const newRole = (payload.new as Profile).role;
+            const oldRole = currentRoleRef.current;
+            if (newRole && oldRole && newRole !== oldRole) {
+              setRoleChangeToast(`Ваша роль изменена на «${ROLE_LABELS[newRole] ?? newRole}»`);
+            }
             void reloadProfile();
           }
           setProfiles((prev) => {
@@ -443,6 +455,13 @@ function AppContent() {
           message="Данные обновлены"
           onClose={() => setShowReconnectToast(false)}
           persistent
+        />
+      )}
+      {roleChangeToast && (
+        <Toast
+          message={roleChangeToast}
+          duration={5000}
+          onClose={() => setRoleChangeToast(null)}
         />
       )}
     </div>
