@@ -1,20 +1,25 @@
 -- Migration v4: closure_objects table for «Закрытие объектов» module
--- Apply in Supabase SQL Editor
+-- Apply in Supabase SQL Editor (fresh install)
 
 CREATE TABLE IF NOT EXISTS public.closure_objects (
   id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  uin             text DEFAULT NULL,
   omsu            text NOT NULL DEFAULT '',
   object_name     text NOT NULL DEFAULT '',
   contractor      text DEFAULT '',
+  object_type     text DEFAULT NULL,
+  mogae_approved  text DEFAULT NULL,
+  mogae_status    text DEFAULT NULL
+                  CHECK (mogae_status IS NULL OR mogae_status IN ('Заходили','В МОГЭ','Не заходили ни разу')),
+  typical_block   text DEFAULT NULL,
+  smr_completed   text DEFAULT NULL,
   payment_status  text NOT NULL DEFAULT 'not_paid'
                   CHECK (payment_status IN ('paid','partial','not_paid','terminated')),
   contract_sum    numeric(15,2) DEFAULT 0,
   paid_sum        numeric(15,2) DEFAULT 0,
   remaining_sum   numeric(15,2) DEFAULT 0,
-  mogae_status    text DEFAULT NULL
-                  CHECK (mogae_status IS NULL OR mogae_status IN ('Заходили','В МОГЭ','Не заходили ни разу')),
   typical_cause   text DEFAULT NULL,
-  typical_block   text DEFAULT NULL,
+  payment_reason  text DEFAULT NULL,
   comment         text DEFAULT '',
   actions         text DEFAULT '',
   snapshot_date   date NOT NULL DEFAULT CURRENT_DATE,

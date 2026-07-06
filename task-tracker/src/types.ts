@@ -5,18 +5,23 @@ export type MogaeStatus = 'Заходили' | 'В МОГЭ' | 'Не заход�
 
 export interface ClosureObject {
   id: number;
+  uin: string | null;
   omsu: string;
   object_name: string;
   contractor: string;
+  object_type: string | null;
+  mogae_approved: string | null;
+  mogae_status: MogaeStatus | null;
+  typical_block: string | null;
+  smr_completed: string | null;
   payment_status: PaymentStatus;
   contract_sum: number;
   paid_sum: number;
   remaining_sum: number;
-  mogae_status: MogaeStatus | null;
   typical_cause: string | null;
-  typical_block: string | null;
-  comment: string;
+  payment_reason: string | null;
   actions: string;
+  comment: string;
   snapshot_date: string;
   created_at?: string;
 }

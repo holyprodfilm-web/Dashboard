@@ -136,11 +136,12 @@ function ObjectsTable({ rows }: { rows: ClosureObject[] }) {
         <span className="text-xs text-slate-400">{filtered.length} из {rows.length}</span>
       </div>
       <div className="overflow-x-auto rounded-xl border border-slate-200">
-        <table className="w-full text-xs min-w-[900px]">
+        <table className="w-full text-xs min-w-[1020px]">
           <thead className="bg-slate-50 text-slate-600 uppercase">
             <tr>
               <th className="px-3 py-2 text-left font-semibold w-6">#</th>
               <th className="px-3 py-2 text-left font-semibold">ОМСУ</th>
+              <th className="px-3 py-2 text-left font-semibold">Тип</th>
               <th className="px-3 py-2 text-left font-semibold">Мероприятие</th>
               <th className="px-3 py-2 text-left font-semibold">Подрядчик</th>
               <th className="px-3 py-2 text-center font-semibold">Статус</th>
@@ -148,17 +149,19 @@ function ObjectsTable({ rows }: { rows: ClosureObject[] }) {
               <th className="px-3 py-2 text-right font-semibold">Оплачено, млн</th>
               <th className="px-3 py-2 text-right font-semibold">Остаток, млн</th>
               <th className="px-3 py-2 text-left font-semibold">МОГЭ</th>
+              <th className="px-3 py-2 text-left font-semibold">СМР</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 ? (
-              <tr><td colSpan={9} className="text-center py-10 text-slate-400">Нет данных</td></tr>
+              <tr><td colSpan={11} className="text-center py-10 text-slate-400">Нет данных</td></tr>
             ) : filtered.map((r, i) => {
               const cfg = PAYMENT_CFG[r.payment_status];
               return (
                 <tr key={r.id} className="hover:bg-slate-50 transition">
                   <td className="px-3 py-2 text-slate-400">{i + 1}</td>
                   <td className="px-3 py-2 font-semibold text-[#8A4C08] whitespace-nowrap">{r.omsu}</td>
+                  <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{r.object_type ?? '—'}</td>
                   <td className="px-3 py-2 text-slate-700 max-w-xs leading-snug">{r.object_name}</td>
                   <td className="px-3 py-2 text-slate-500 max-w-[160px] truncate">{r.contractor || '—'}</td>
                   <td className="px-3 py-2 text-center">
@@ -170,6 +173,7 @@ function ObjectsTable({ rows }: { rows: ClosureObject[] }) {
                   <td className="px-3 py-2 text-right tabular-nums text-emerald-600">{fmtMlnN(r.paid_sum)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-[#E93A58]">{fmtMlnN(r.remaining_sum)}</td>
                   <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{r.mogae_status ?? '—'}</td>
+                  <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{r.smr_completed ?? '—'}</td>
                 </tr>
               );
             })}
