@@ -8,9 +8,10 @@ interface DashboardViewProps {
   tasks: Task[];
   meetings: Meeting[];
   onManagerClick: (managerName: string) => void;
+  onStatusFilter?: (status: 'in_progress' | 'completed' | 'overdue') => void;
 }
 
-export default function DashboardView({ tasks, meetings, onManagerClick }: DashboardViewProps) {
+export default function DashboardView({ tasks, meetings, onManagerClick, onStatusFilter }: DashboardViewProps) {
   const analytics = useMemo(() => {
     const meetingManagerMap = new Map(meetings.map(m => [m.id, m.manager]));
     
@@ -68,9 +69,9 @@ export default function DashboardView({ tasks, meetings, onManagerClick }: Dashb
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <KpiCard title="Всего поручений" value={analytics.total} icon={<FileText size={20} />} color="blue" />
-        <KpiCard title="В работе" value={analytics.inProgress + analytics.newTasks} icon={<Clock size={20} />} color="amber" />
-        <KpiCard title="Исполнено" value={analytics.completed} icon={<CheckCircle size={20} />} color="emerald" />
-        <KpiCard title="Просрочено" value={analytics.overdue} icon={<AlertTriangle size={20} />} color="red" />
+        <KpiCard title="В работе" value={analytics.inProgress + analytics.newTasks} icon={<Clock size={20} />} color="amber" onClick={onStatusFilter ? () => onStatusFilter('in_progress') : undefined} />
+        <KpiCard title="Исполнено" value={analytics.completed} icon={<CheckCircle size={20} />} color="emerald" onClick={onStatusFilter ? () => onStatusFilter('completed') : undefined} />
+        <KpiCard title="Просрочено" value={analytics.overdue} icon={<AlertTriangle size={20} />} color="red" onClick={onStatusFilter ? () => onStatusFilter('overdue') : undefined} />
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center">
           <div className="text-sm text-slate-500 mb-1">Общий прогресс</div>
           <div className="text-3xl font-bold text-slate-900">{progressPercent}%</div>

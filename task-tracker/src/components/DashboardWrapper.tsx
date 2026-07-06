@@ -15,6 +15,7 @@ interface DashboardWrapperProps {
   onSelectMeeting: (id: number) => void;
   onMeetingCreated: (id: number) => void;
   onManagerClick: (managerName: string) => void;
+  onStatusFilter?: (status: 'in_progress' | 'completed' | 'overdue') => void;
 }
 
 export default function DashboardWrapper({
@@ -26,6 +27,7 @@ export default function DashboardWrapper({
   onSelectMeeting,
   onMeetingCreated,
   onManagerClick,
+  onStatusFilter,
 }: DashboardWrapperProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'inwork' | 'archive'>('dashboard');
   const [showCreate, setShowCreate] = useState(false);
@@ -105,6 +107,7 @@ export default function DashboardWrapper({
           tasks={tasks}
           meetings={meetings}
           onManagerClick={onManagerClick}
+          onStatusFilter={onStatusFilter}
         />
       )}
 

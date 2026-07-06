@@ -191,14 +191,28 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
                                         {taskLinks.map(link => {
                                           const other = getLinkedTask(link, task.id);
                                           if (!other) return null;
+                                          // Determine direction relative to current task
+                                          const isParent = link.from_task_id === task.id; // current → other
                                           return (
-                                            <div key={link.id} className="flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded-lg">
+                                            <div
+                                              key={link.id}
+                                              className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg ${
+                                                isParent
+                                                  ? 'bg-blue-50 text-blue-700'
+                                                  : 'bg-indigo-50 text-indigo-700'
+                                              }`}
+                                            >
                                               <Link2 size={11} />
-                                              <span>→ #{other.id}: {other.description.slice(0, 30)}{other.description.length > 30 ? '…' : ''}</span>
+                                              <span className="font-medium">
+                                                {isParent ? '↓ Породило:' : '↑ Родилось из:'}
+                                              </span>
+                                              <span className="opacity-80">
+                                                #{other.id}: {other.description.slice(0, 28)}{other.description.length > 28 ? '…' : ''}
+                                              </span>
                                               {canDelete && (
                                                 <button
                                                   onClick={(e) => deleteLink(link.id, e)}
-                                                  className="ml-1 text-blue-300 hover:text-red-500 transition"
+                                                  className="ml-1 opacity-50 hover:opacity-100 hover:text-red-500 transition"
                                                 >
                                                   <X size={10} />
                                                 </button>

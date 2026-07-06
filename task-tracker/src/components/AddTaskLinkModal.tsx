@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link2, X, Loader2, Check } from 'lucide-react';
+import { Link2, X, Loader2, Check, ArrowDown, ArrowUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Task, TaskLink, Meeting } from '../types';
 import { STATUS_CONFIG } from '../types';
@@ -14,12 +14,16 @@ interface Props {
   onCreated: () => void;
 }
 
+// direction: 'current_is_parent' — текущее породило выбранное (from=current, to=selected)
+//            'current_is_child'  — текущее родилось из выбранного (from=selected, to=current)
+type Direction = 'current_is_parent' | 'current_is_child';
+
 export default function AddTaskLinkModal({ currentTask, allTasks, existingLinks, meetings, onClose, onCreated }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [direction, setDirection] = useState<Direction>('current_is_parent');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Другие задачи по тому же объекту, исключая уже связанные
   const linkedIds = new Set(
     existingLinks.flatMap(l => [l.from_task_id, l.to_task_id])
   );
@@ -35,9 +39,13 @@ export default function AddTaskLinkModal({ currentTask, allTasks, existingLinks,
     if (!selectedId) return;
     setSaving(true);
     setError('');
+
+    const fromId = direction === 'current_is_parent' ? currentTask.id : selectedId;
+    const toId   = direction === 'current_is_parent' ? selectedId : currentTask.id;
+
     const { error: err } = await supabase.from('task_links').insert([{
-      from_task_id: currentTask.id,
-      to_task_id: selectedId,
+      from_task_id: fromId,
+      to_task_id: toId,
       object_uin: currentTask.object_uin,
     }]);
     setSaving(false);
@@ -60,8 +68,45 @@ export default function AddTaskLinkModal({ currentTask, allTasks, existingLinks,
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
         </div>
 
-        <p className="text-sm text-slate-500 mb-4">
-          Выберите поручение по объекту <span className="font-mono text-slate-700">{currentTask.object_uin}</span>, с которым хотите установить связь.
+        {/* Direction selector */}
+        <div className="mb-4">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Тип связи</p>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => setDirection('current_is_parent')}
+              className={`flex items-center gap-3 p-3 rounded-xl border text-sm transition text-left ${
+                direction === 'current_is_parent'
+                  ? 'border-blue-400 bg-blue-50 text-blue-800'
+                  : 'border-slate-200 hover:border-slate-300 text-slate-700'
+              }`}
+            >
+              <ArrowDown size={16} className={direction === 'current_is_parent' ? 'text-blue-500' : 'text-slate-400'} />
+              <div>
+                <div className="font-medium">Текущее породило выбранное</div>
+                <div className="text-xs opacity-70">Выбранное поручение родилось из результата текущего</div>
+              </div>
+              {direction === 'current_is_parent' && <Check size={15} className="ml-auto text-blue-500 shrink-0" />}
+            </button>
+            <button
+              onClick={() => setDirection('current_is_child')}
+              className={`flex items-center gap-3 p-3 rounded-xl border text-sm transition text-left ${
+                direction === 'current_is_child'
+                  ? 'border-indigo-400 bg-indigo-50 text-indigo-800'
+                  : 'border-slate-200 hover:border-slate-300 text-slate-700'
+              }`}
+            >
+              <ArrowUp size={16} className={direction === 'current_is_child' ? 'text-indigo-500' : 'text-slate-400'} />
+              <div>
+                <div className="font-medium">Текущее родилось из выбранного</div>
+                <div className="text-xs opacity-70">Текущее поручение родилось из результата выбранного</div>
+              </div>
+              {direction === 'current_is_child' && <Check size={15} className="ml-auto text-indigo-500 shrink-0" />}
+            </button>
+          </div>
+        </div>
+
+        <p className="text-sm text-slate-500 mb-3">
+          Выберите поручение по объекту <span className="font-mono text-slate-700">{currentTask.object_uin}</span>:
         </p>
 
         {candidates.length === 0 ? (
@@ -69,7 +114,7 @@ export default function AddTaskLinkModal({ currentTask, allTasks, existingLinks,
             Нет доступных поручений для связи по этому объекту
           </div>
         ) : (
-          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
             {candidates.map(task => {
               const status = getAutoStatus(task.status, task.deadline);
               const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['new'];

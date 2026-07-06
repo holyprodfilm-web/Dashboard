@@ -25,6 +25,7 @@ function AppContent() {
   const [dataError, setDataError] = useState('');
   const [selectedMeetingId, setSelectedMeetingId] = useState<number | null>(null);
   const [selectedManager, setSelectedManager] = useState<string>('');
+  const [objectsStatusFilter, setObjectsStatusFilter] = useState<'in_work' | 'completed' | 'overdue' | null>(null);
 
   const loadAllData = useCallback(async () => {
     if (!user) return;
@@ -175,6 +176,11 @@ function AppContent() {
               setSelectedManager(managerName);
               setView('managerTasks');
             }}
+            onStatusFilter={(status) => {
+              // 'in_progress' from dashboard means both in_progress + new tasks
+              setObjectsStatusFilter(status === 'in_progress' ? 'in_work' : status);
+              setView('objects');
+            }}
           />
         )}
         {view === 'managerTasks' && (
@@ -193,6 +199,9 @@ function AppContent() {
             meetings={visibleMeetings}
             isAdmin={profile?.role === 'admin'}
             onReload={loadAllData}
+            statusFilter={objectsStatusFilter}
+            onClearFilter={() => setObjectsStatusFilter(null)}
+
           />
         )}
         {view === 'users' && profile?.role === 'admin' && (

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Building2, User, Calendar, Tag, GitBranch, Upload, Trash2, ClipboardList } from 'lucide-react';
+import { Search, Building2, User, Calendar, Tag, GitBranch, Upload, Trash2, ClipboardList, X as XIcon, Filter } from 'lucide-react';
 import type { Address, Task, Meeting } from '../types';
 import { STATUS_CONFIG } from '../types';
 import { getAutoStatus } from '../utils';
@@ -7,15 +7,23 @@ import ObjectDetailModal from './ObjectDetailModal';
 import AddressUploadModal from './AddressUploadModal';
 import { supabase } from '../lib/supabase';
 
+const STATUS_FILTER_LABELS: Record<string, string> = {
+  in_work: 'В работе',
+  completed: 'Исполнено',
+  overdue: 'Просрочено',
+};
+
 interface ObjectsViewProps {
   addresses: Address[];
   tasks: Task[];
   meetings: Meeting[];
   isAdmin?: boolean;
   onReload?: () => void;
+  statusFilter?: 'in_work' | 'completed' | 'overdue' | null;
+  onClearFilter?: () => void;
 }
 
-export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onReload }: ObjectsViewProps) {
+export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onReload, statusFilter, onClearFilter }: ObjectsViewProps) {
   const [search, setSearch] = useState('');
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -43,12 +51,25 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
     }
   };
 
-  const filtered = addresses.filter((a) =>
+  const searchFiltered = addresses.filter((a) =>
     a["Код УИН"].toLowerCase().includes(search.toLowerCase()) ||
     a["Наименование объекта"].toLowerCase().includes(search.toLowerCase()) ||
     a["Городской округ"].toLowerCase().includes(search.toLowerCase()) ||
     (a["Руководитель проекта"] || '').toLowerCase().includes(search.toLowerCase())
   );
+
+  // When a status filter is active, show only objects that have at least one task matching
+  // 'in_work' covers both 'in_progress' and 'new' (matches the dashboard KPI card count)
+  const filtered = statusFilter
+    ? searchFiltered.filter(a => {
+        const addrTasks = tasks.filter(t => t.object_uin === a["Код УИН"]);
+        return addrTasks.some(t => {
+          const s = getAutoStatus(t.status, t.deadline);
+          if (statusFilter === 'in_work') return s === 'in_progress' || s === 'new';
+          return s === statusFilter;
+        });
+      })
+    : searchFiltered;
 
   const tasksByUin = (uin: string) => tasks.filter(t => t.object_uin === uin);
 
@@ -57,7 +78,22 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-900 mb-1">Справочник объектов</h2>
-          <p className="text-slate-500">Всего объектов: {addresses.length}</p>
+          <p className="text-slate-500">
+            {statusFilter
+              ? `Показаны объекты: ${STATUS_FILTER_LABELS[statusFilter]} · ${filtered.length} из ${addresses.length}`
+              : `Всего объектов: ${addresses.length}`}
+          </p>
+          {statusFilter && (
+            <button
+              onClick={onClearFilter}
+              className="mt-2 flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition font-medium"
+            >
+              <Filter size={12} />
+              Фильтр: {STATUS_FILTER_LABELS[statusFilter]}
+              <XIcon size={12} className="ml-1 opacity-60" />
+              Сбросить
+            </button>
+          )}
         </div>
         {isAdmin && (
           <button

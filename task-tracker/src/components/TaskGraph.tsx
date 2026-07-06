@@ -74,14 +74,8 @@ export default function TaskGraph({ tasks, links, meetings }: Props) {
 
   const posMap = new Map(positions.map(p => [p.task.id, p]));
 
-  // Deduplicate links (link is bidirectional)
-  const seen = new Set<string>();
-  const uniqueLinks = links.filter(l => {
-    const key = [Math.min(l.from_task_id, l.to_task_id), Math.max(l.from_task_id, l.to_task_id)].join('-');
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // Keep each link as-is — direction matters (from=parent → to=child)
+  const uniqueLinks = links;
 
   const meetingMap = new Map(meetings.map(m => [m.id, m]));
 
