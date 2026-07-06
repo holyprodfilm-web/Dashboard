@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   FlaskConical, Plus, RefreshCw, Loader2, ChevronRight, FileText, CheckCircle2,
   Clock, AlertTriangle, TrendingUp, Users, Banknote, BarChart3, Search, Filter,
+  Download,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { NtsEntry, NtsSession, NtsDocRound, Profile } from '../types';
 import { NTS_STATUS_CONFIG, NTS_PROTOCOL_STATUS_CONFIG } from '../types';
 import NtsEntryModal from './NtsEntryModal';
+import { exportNtsToExcel } from '../lib/ntsExport';
 
 interface NtsViewProps {
   profiles: Profile[];
@@ -27,6 +29,7 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedEntry, setSelectedEntry] = useState<NtsEntry | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const isAdmin = currentUserRole === 'admin' || (isModuleAdmin ?? false);
 
@@ -153,6 +156,22 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={loadData} title="Обновить" className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
             <RefreshCw size={18} />
+          </button>
+          <button
+            onClick={async () => {
+              setExporting(true);
+              try {
+                await exportNtsToExcel(entries, rounds, profiles);
+              } finally {
+                setExporting(false);
+              }
+            }}
+            disabled={exporting || entries.length === 0}
+            title="Экспорт в Excel"
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-medium text-sm shadow-sm shadow-emerald-600/20"
+          >
+            {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+            Экспорт в Excel
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
