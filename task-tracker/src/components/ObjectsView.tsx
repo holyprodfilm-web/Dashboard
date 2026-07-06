@@ -209,13 +209,36 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                 );
               })}
               {localStatusFilter && (
-                <button
-                  onClick={() => setLocalStatusFilter(null)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-500 hover:bg-slate-100 transition"
-                  title="Сбросить фильтр"
-                >
-                  × сбросить
-                </button>
+                <>
+                  <button
+                    onClick={() => setLocalStatusFilter(null)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-500 hover:bg-slate-100 transition"
+                    title="Сбросить фильтр"
+                  >
+                    × сбросить
+                  </button>
+                  <button
+                    onClick={handleCopyLink}
+                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition font-medium border ${
+                      linkCopied
+                        ? 'bg-teal-50 border-teal-200 text-teal-700'
+                        : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                    }`}
+                    title="Скопировать ссылку на текущий фильтр"
+                  >
+                    {linkCopied ? (
+                      <>
+                        <Check size={12} className="text-teal-600" />
+                        Ссылка скопирована!
+                      </>
+                    ) : (
+                      <>
+                        <LinkIcon size={12} />
+                        Скопировать ссылку
+                      </>
+                    )}
+                  </button>
+                </>
               )}
             </div>
           )}
