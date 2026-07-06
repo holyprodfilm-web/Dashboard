@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { Home, Target, Loader2, LogOut, AlertCircle, UserCircle } from 'lucide-react';
 import UserProfileModal from './components/UserProfileModal';
@@ -15,6 +15,7 @@ import ManagerTasksView from './components/ManagerTasksView';
 import UsersView from './components/UsersView';
 import BootstrapAdminBanner from './components/BootstrapAdminBanner';
 import ClosureView from './components/ClosureView';
+import Toast from './components/Toast';
 
 function AppContent() {
   const { user, profile, loading, signOut, reloadProfile } = useAuth();
@@ -42,6 +43,8 @@ function AppContent() {
   });
   const [showProfile, setShowProfile] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [showReconnectToast, setShowReconnectToast] = useState(false);
+  const hadErrorRef = useRef(false);
 
   // Sync ?kpi= URL param with the external status filter (for shareability)
   useEffect(() => {
@@ -169,8 +172,13 @@ function AppContent() {
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
+          if (hadErrorRef.current) {
+            setShowReconnectToast(true);
+            hadErrorRef.current = false;
+          }
           setRealtimeStatus('live');
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          hadErrorRef.current = true;
           setRealtimeStatus('error');
         } else {
           setRealtimeStatus('connecting');
@@ -384,6 +392,12 @@ function AppContent() {
           />
         )}
       </main>
+      {showReconnectToast && (
+        <Toast
+          message="Данные обновлены"
+          onClose={() => setShowReconnectToast(false)}
+        />
+      )}
     </div>
   );
 }
