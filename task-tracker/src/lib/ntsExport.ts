@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { unzipSync, zipSync } from 'fflate';
 import { supabase } from './supabase';
 import type { NtsEntry, NtsDocRound, NtsChecklistItem, NtsChecklistResponse, Profile } from '../types';
 import { NTS_STATUS_CONFIG, NTS_PROTOCOL_STATUS_CONFIG, NTS_CHECKLIST_STATUS } from '../types';
@@ -10,15 +11,34 @@ function fmt(n: number | null | undefined): number | string {
   return n;
 }
 
-function fmtDate(d: string | null | undefined): string {
+/** Returns a JS Date for Excel date-serial storage, or '' when absent. */
+function fmtDateExcel(d: string | null | undefined): Date | string {
   if (!d) return '';
-  return new Date(d).toLocaleDateString('ru-RU');
+  const parsed = new Date(d);
+  return isNaN(parsed.getTime()) ? '' : parsed;
 }
 
-function excessPct(entry: NtsEntry): string {
+/** Legacy string formatter kept for the checklist round label. */
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return '';
+  const parsed = new Date(d);
+  return isNaN(parsed.getTime()) ? '' : parsed.toLocaleDateString('ru-RU');
+}
+
+/** Returns numeric ratio (e.g. 0.052) for proper Excel % formatting, or '' */
+function excessPctNum(entry: NtsEntry): number | string {
   if (!entry.contract_cost) return '';
-  const pct = ((entry.pre_nts_cost - entry.contract_cost) / entry.contract_cost) * 100;
-  return `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`;
+  return (entry.pre_nts_cost - entry.contract_cost) / entry.contract_cost;
+}
+
+// Apply a number format string to every data cell in a column (rows 1..lastRow)
+function applyColFormat(ws: XLSX.WorkSheet, col: number, fmt: string) {
+  const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1');
+  for (let r = 1; r <= range.e.r; r++) {
+    const ref = XLSX.utils.encode_cell({ r, c: col });
+    if (!ws[ref]) continue;
+    ws[ref].z = fmt;
+  }
 }
 
 // Apply a simple header style (bold, light-blue fill) to the first row
@@ -70,15 +90,15 @@ function buildRegistrySheet(
     e.contractor,
     NTS_STATUS_CONFIG[e.status]?.label ?? e.status,
     e.protocol_status ? (NTS_PROTOCOL_STATUS_CONFIG[e.protocol_status]?.label ?? '') : '',
-    fmt(e.contract_cost),
-    fmt(e.pre_nts_cost),
-    fmt(e.post_nts_cost),
-    fmt(e.mogae_cost),
-    excessPct(e),
+    fmt(e.contract_cost),      // col 5
+    fmt(e.pre_nts_cost),       // col 6
+    fmt(e.post_nts_cost),      // col 7
+    fmt(e.mogae_cost),         // col 8
+    excessPctNum(e),           // col 9
     rpName(e.rp_main_id),
     rpName(e.rp2_id),
     e.protocol_number ?? '',
-    fmtDate(e.protocol_date),
+    fmtDateExcel(e.protocol_date), // col 13
     e.notes ?? '',
   ]);
 
@@ -102,6 +122,14 @@ function buildRegistrySheet(
     { wch: 14 }, // Дата протокола
     { wch: 40 }, // Примечания
   ];
+
+  // Number formats: cost cols (#,##0), excess % (0.0%), date (DD.MM.YYYY)
+  applyColFormat(ws, 5,  '#,##0');
+  applyColFormat(ws, 6,  '#,##0');
+  applyColFormat(ws, 7,  '#,##0');
+  applyColFormat(ws, 8,  '#,##0');
+  applyColFormat(ws, 9,  '0.0%');
+  applyColFormat(ws, 13, 'DD.MM.YYYY');
 
   styleHeader(ws, headers.length);
   return ws;
@@ -203,6 +231,45 @@ function buildChecklistSheet(
   return ws;
 }
 
+// ── Freeze-pane injection (post-processing) ───────────────────────────────────
+
+const FREEZE_PANE_XML =
+  '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>' +
+  '<selection pane="bottomLeft"/>';
+
+/**
+ * xlsx 0.18.x does not write freeze panes natively.
+ * We post-process the raw XLSX ZIP bytes: for every worksheet XML we find the
+ * self-closing <sheetView .../> element written by xlsx and replace it with
+ * an open/close pair that includes the <pane state="frozen"> child.
+ */
+function injectFreezePanes(xlsxBytes: Uint8Array): Uint8Array {
+  const files = unzipSync(xlsxBytes);
+
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+
+  const out: Record<string, [Uint8Array, { level: 0 }]> = {};
+
+  for (const [path, bytes] of Object.entries(files)) {
+    if (/^xl\/worksheets\/sheet\d+\.xml$/.test(path)) {
+      let xml = decoder.decode(bytes);
+
+      // Replace self-closing <sheetView .../> with open/close version + pane
+      xml = xml.replace(
+        /(<(?:\w+:)?sheetView\b[^>]*?)\/>/g,
+        `$1>${FREEZE_PANE_XML}</sheetView>`,
+      );
+
+      out[path] = [encoder.encode(xml), { level: 0 }];
+    } else {
+      out[path] = [bytes, { level: 0 }];
+    }
+  }
+
+  return zipSync(out);
+}
+
 // ── Main export function ──────────────────────────────────────────────────────
 
 export async function exportNtsToExcel(
@@ -232,6 +299,21 @@ export async function exportNtsToExcel(
   const checklistSheet = buildChecklistSheet(entries, rounds, items, responses, profileMap);
   XLSX.utils.book_append_sheet(wb, checklistSheet, 'Чек-листы');
 
+  // Write to raw bytes, inject freeze panes, then trigger download
+  // XLSX.write returns an ArrayBuffer (browser) or Buffer (Node); convert to
+  // Uint8Array so fflate's unzipSync always receives the expected type.
+  const rawBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true }) as ArrayBuffer | Uint8Array;
+  const rawBytes = rawBuffer instanceof Uint8Array ? rawBuffer : new Uint8Array(rawBuffer);
+  const patchedBytes = injectFreezePanes(rawBytes);
+
   const date = new Date().toLocaleDateString('ru-RU').replace(/\./g, '-');
-  XLSX.writeFile(wb, `НТС_реестр_${date}.xlsx`);
+  const blob = new Blob([(patchedBytes.buffer as ArrayBuffer).slice(patchedBytes.byteOffset, patchedBytes.byteOffset + patchedBytes.byteLength)], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `НТС_реестр_${date}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
