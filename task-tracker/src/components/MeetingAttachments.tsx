@@ -59,7 +59,16 @@ export default function MeetingAttachments({ meetingId }: Props) {
     setError('');
     setUploading(true);
 
-    const safeName = file.name.replace(/[^a-zA-Zа-яА-Я0-9._-]/g, '_');
+    // Supabase Storage requires ASCII-only keys — strip all non-ASCII characters.
+    // The original filename is preserved separately in the `file_name` DB column.
+    const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+    const baseName = file.name
+      .replace(/\.[^.]+$/, '')           // strip extension
+      .replace(/[^a-zA-Z0-9._-]/g, '_') // replace non-ASCII (incl. Cyrillic) with _
+      .replace(/_+/g, '_')              // collapse consecutive underscores
+      .replace(/^_+|_+$/g, '')          // trim leading/trailing underscores
+      || 'file';
+    const safeName = baseName + ext;
     const path = `${meetingId}/${Date.now()}_${safeName}`;
 
     const { data: uploadData, error: uploadError } = await supabase.storage
