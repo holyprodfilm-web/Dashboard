@@ -360,6 +360,9 @@ function AppContent() {
 
               <NotificationBell
                 tasks={visibleTasks}
+                addresses={addresses}
+                districts={profile?.districts}
+                isSuperUser={profile?.role === 'admin' || (profile?.responsible_modules?.length ?? 0) > 0}
                 moduleAccess={
                   profile?.role === 'admin'
                     ? { dashboard: true, objects: true, closure: true, nts: true }

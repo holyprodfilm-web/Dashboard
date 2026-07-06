@@ -1,11 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Bell, X, AlertTriangle, Clock, CheckCircle2, ClipboardList, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { Task } from '../types';
+import type { Task, Address } from '../types';
 
 interface Props {
   tasks: Task[];
   moduleAccess: Record<string, boolean>;
+  /** Districts assigned to this user (null/empty → no district filter) */
+  districts?: string[] | null;
+  /** Full addresses list for district lookups by UIN */
+  addresses: Address[];
+  /** True when user is admin or module-responsible (bypass district filter) */
+  isSuperUser?: boolean;
 }
 
 interface AppNotif {
@@ -18,7 +24,7 @@ interface AppNotif {
   detail: string;
 }
 
-export default function NotificationBell({ tasks, moduleAccess }: Props) {
+export default function NotificationBell({ tasks, moduleAccess, districts, addresses, isSuperUser }: Props) {
   const [open, setOpen] = useState(false);
   const [notifs, setNotifs] = useState<AppNotif[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,15 +48,35 @@ export default function NotificationBell({ tasks, moduleAccess }: Props) {
     // ── Module access check ──────────────────────────────────────────────────
     const canSeeModule = (mod: string) => moduleAccess[mod] ?? false;
 
+    // ── District scope ───────────────────────────────────────────────────────
+    // Super-users (admin / module-responsible) see all districts.
+    // Other users with assigned districts only see their own.
+    const hasDistrictFilter = !isSuperUser && (districts?.length ?? 0) > 0;
+
+    // Fast UIN → district lookup (guard against empty addresses during initial load)
+    const districtByUin = new Map<string, string>(
+      (addresses ?? []).map(a => [a['Код УИН'], a['Городской округ'] ?? ''])
+    );
+
+    /** Returns true if this UIN is within scope for this user */
+    const inScope = (uin: string | null | undefined): boolean => {
+      if (!hasDistrictFilter) return true;
+      if (!uin) return false;
+      const d = districtByUin.get(uin) ?? '';
+      return (districts ?? []).includes(d);
+    };
+
     // ── Поручения: просроченные задачи ───────────────────────────────────────
     if (canSeeModule('dashboard')) {
-      const overdue = tasks.filter(t => {
+      const scopedTasks = tasks.filter(t => inScope(t.object_uin));
+
+      const overdue = scopedTasks.filter(t => {
         if (!t.deadline || t.status === 'completed') return false;
         const d = new Date(t.deadline);
         d.setHours(0, 0, 0, 0);
         return d < today;
       });
-      const soon = tasks.filter(t => {
+      const soon = scopedTasks.filter(t => {
         if (!t.deadline || t.status === 'completed') return false;
         const d = new Date(t.deadline);
         d.setHours(0, 0, 0, 0);
@@ -90,36 +116,42 @@ export default function NotificationBell({ tasks, moduleAccess }: Props) {
 
       const { data: overdueRounds } = await supabase
         .from('nts_doc_rounds')
-        .select('id, received_date, nts_entry_id, nts_entries!inner(object_name, status)')
+        .select('id, received_date, nts_entry_id, nts_entries!inner(object_name, object_uin, status)')
         .is('remarks_issued_at', null)
         .eq('checklist_approved', false)
         .lt('received_date', isoDeadline);
 
-      if (overdueRounds && overdueRounds.length > 0) {
+      const filteredOverdue = (overdueRounds ?? []).filter(r => {
+        const entry = r.nts_entries as { object_uin?: string } | null;
+        return inScope(entry?.object_uin);
+      });
+
+      if (filteredOverdue.length > 0) {
         list.push({
           id: 'nts-overdue-reviews',
           module: 'nts',
           moduleLabel: 'НТС',
           severity: 'overdue',
           icon: <ClipboardList size={15} />,
-          title: `${overdueRounds.length} раунд${overdueRounds.length === 1 ? '' : 'а'} НТС — просрочено рассмотрение`,
+          title: `${filteredOverdue.length} раунд${filteredOverdue.length === 1 ? '' : 'а'} НТС — просрочено рассмотрение`,
           detail: 'Прошло >3 дней с получения документации, замечания не выданы',
         });
       }
 
       // НТС: entries in rp_review with no rounds yet (no action taken)
-      const { data: allRounds } = await supabase
-        .from('nts_doc_rounds')
-        .select('nts_entry_id');
-      const { data: rpEntries } = await supabase
-        .from('nts_entries')
-        .select('id, object_name, created_at')
-        .eq('status', 'rp_review');
+      const [allRoundsRes, rpEntriesRes] = await Promise.all([
+        supabase.from('nts_doc_rounds').select('nts_entry_id'),
+        supabase.from('nts_entries').select('id, object_name, object_uin, created_at').eq('status', 'rp_review'),
+      ]);
+
+      const allRounds = allRoundsRes.data;
+      const rpEntries = rpEntriesRes.data;
 
       if (rpEntries && allRounds !== null) {
         const roundEntryIds = new Set((allRounds ?? []).map((r: { nts_entry_id: number }) => r.nts_entry_id));
-        const stale = rpEntries.filter((e: { id: number; created_at: string }) => {
+        const stale = rpEntries.filter((e: { id: number; object_uin: string; created_at: string }) => {
           if (roundEntryIds.has(e.id)) return false;
+          if (!inScope(e.object_uin)) return false;
           // Created > 5 days ago with no documentation received
           const created = new Date(e.created_at);
           const diffDays = Math.round((today.getTime() - created.getTime()) / 86400000);
@@ -141,7 +173,7 @@ export default function NotificationBell({ tasks, moduleAccess }: Props) {
 
     setNotifs(list);
     setLoading(false);
-  }, [tasks, moduleAccess]);
+  }, [tasks, moduleAccess, districts, addresses, isSuperUser]);
 
   useEffect(() => {
     void buildNotifications();
