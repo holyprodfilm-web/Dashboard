@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Building2, User, Calendar, Tag, GitBranch, Upload, Trash2, ClipboardList, X as XIcon, Filter } from 'lucide-react';
 import type { Address, Task, Meeting } from '../types';
 import { STATUS_CONFIG } from '../types';
@@ -34,7 +34,26 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
   const [deleteDialogDetailAddress, setDeleteDialogDetailAddress] = useState<Address | null>(null);
   const [deleteDialogFocusTaskId, setDeleteDialogFocusTaskId] = useState<number | null>(null);
   // Local health-badge filter (independent of the external statusFilter prop)
-  const [localStatusFilter, setLocalStatusFilter] = useState<string | null>(null);
+  // Initialise from URL query param so it survives tab switches
+  const [localStatusFilter, setLocalStatusFilter] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const s = params.get('status');
+    const valid = ['overdue', 'in_progress', 'new', 'completed'];
+    return s && valid.includes(s) ? s : null;
+  });
+
+  // Keep URL in sync with the active filter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (localStatusFilter) {
+      params.set('status', localStatusFilter);
+    } else {
+      params.delete('status');
+    }
+    const newSearch = params.toString();
+    const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+  }, [localStatusFilter]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
