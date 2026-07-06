@@ -7,6 +7,7 @@ import { canEditTask } from '../lib/dataFilters';
 import type { Address, Task, Meeting, Profile, TaskLink } from '../types';
 import { STATUS_CONFIG } from '../types';
 import { getAutoStatus } from '../utils';
+import Toast from './Toast';
 import CreateTaskModal from './CreateTaskModal';
 import EditMeetingModal from './EditMeetingModal';
 import MeetingAttachments from './MeetingAttachments';
@@ -32,6 +33,7 @@ export default function MeetingDetailView({
   const [showEditModal, setShowEditModal] = useState(false);
   const [linkTargetTask, setLinkTargetTask] = useState<Task | null>(null);
   const [taskLinks, setTaskLinks] = useState<TaskLink[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
 
   const meetingTasks = tasks.filter(t => t.meeting_id === meetingId);
   const availableObjects = addresses.filter(a => meeting?.selected_objects?.includes(a["Код УИН"]));
@@ -61,12 +63,14 @@ export default function MeetingDetailView({
   const updateStatus = async (taskId: number, newStatus: string) => {
     await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId);
     // Real-time subscription in App.tsx propagates the UPDATE automatically
+    setToast('Статус обновлён');
   };
 
   const deleteTask = async (taskId: number) => {
     if (!window.confirm('Удалить поручение?')) return;
     await supabase.from('tasks').delete().eq('id', taskId);
     // Real-time subscription in App.tsx propagates the DELETE automatically
+    setToast('Поручение удалено');
   };
 
   const deleteLink = async (linkId: number, e: React.MouseEvent) => {
@@ -92,6 +96,9 @@ export default function MeetingDetailView({
 
   return (
     <>
+      {toast && (
+        <Toast message={toast} duration={2000} onClose={() => setToast(null)} />
+      )}
       <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 mb-6 transition">
         <ArrowLeft size={18} /> Назад к дашборду
       </button>
