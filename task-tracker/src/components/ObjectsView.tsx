@@ -21,6 +21,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
   const [deleteTarget, setDeleteTarget] = useState<Address | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [deleteDialogDetailAddress, setDeleteDialogDetailAddress] = useState<Address | null>(null);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -210,11 +211,19 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                     {visibleTasks.map(task => {
                       const sc = STATUS_CONFIG[task.status];
                       return (
-                        <li key={task.id} className="flex items-center gap-2 text-xs text-red-900">
-                          <span className={`px-1.5 py-0.5 rounded-md font-medium shrink-0 ${sc?.bg ?? 'bg-slate-100'} ${sc?.color ?? 'text-slate-700'}`}>
-                            {sc?.label ?? task.status}
-                          </span>
-                          <span className="truncate">{task.description}</span>
+                        <li key={task.id}>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteDialogDetailAddress(deleteTarget)}
+                            className="w-full flex items-center gap-2 text-xs text-red-900 hover:bg-red-100 rounded-lg px-1.5 py-1 transition text-left group/task"
+                            title="Открыть карточку объекта"
+                          >
+                            <span className={`px-1.5 py-0.5 rounded-md font-medium shrink-0 ${sc?.bg ?? 'bg-slate-100'} ${sc?.color ?? 'text-slate-700'}`}>
+                              {sc?.label ?? task.status}
+                            </span>
+                            <span className="truncate flex-1">{task.description}</span>
+                            <span className="text-red-400 opacity-0 group-hover/task:opacity-100 transition shrink-0">↗</span>
+                          </button>
                         </li>
                       );
                     })}
@@ -250,6 +259,15 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
           </div>
         );
       })()}
+
+      {deleteDialogDetailAddress && (
+        <ObjectDetailModal
+          address={deleteDialogDetailAddress}
+          allTasks={tasks}
+          allMeetings={meetings}
+          onClose={() => setDeleteDialogDetailAddress(null)}
+        />
+      )}
     </>
   );
 }
