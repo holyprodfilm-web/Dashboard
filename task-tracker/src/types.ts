@@ -84,6 +84,11 @@ export interface NtsDocRound {
   id: number;
   nts_entry_id: number;
   received_date: string;
+  presentation_date: string | null;
+  remarks_issued_at: string | null;
+  remarks_resolved_contractor_at: string | null;
+  remarks_resolved_district_at: string | null;
+  checklist_approved: boolean;
   notes: string | null;
   created_at: string;
   created_by: string | null;

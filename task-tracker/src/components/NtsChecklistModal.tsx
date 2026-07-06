@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Loader2, CheckCircle2, XCircle, AlertCircle, MinusCircle, Save, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { NtsChecklistItem, NtsChecklistResponse, NtsChecklistItemStatus, NtsRespondentRole, Profile } from '../types';
@@ -11,6 +11,7 @@ interface Props {
   profiles: Profile[];
   currentUserId?: string;
   onClose: () => void;
+  onApprovalChange?: (approved: boolean) => void;
 }
 
 const ROLE_LABELS: Record<NtsRespondentRole, string> = {
@@ -26,7 +27,7 @@ const STATUS_ICONS: Record<NtsChecklistItemStatus, React.ReactElement> = {
   na:      <MinusCircle size={14} className="text-slate-300 shrink-0" />,
 };
 
-export default function NtsChecklistModal({ roundId, entryRpMainId, entryRp2Id, profiles, currentUserId, onClose }: Props) {
+export default function NtsChecklistModal({ roundId, entryRpMainId, entryRp2Id, profiles, currentUserId, onClose, onApprovalChange }: Props) {
   const [items, setItems] = useState<NtsChecklistItem[]>([]);
   const [responses, setResponses] = useState<NtsChecklistResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +57,18 @@ export default function NtsChecklistModal({ roundId, entryRpMainId, entryRp2Id, 
   }, [roundId]);
 
   useEffect(() => { void loadData(); }, [loadData]);
+
+  // Notify parent when checklist approval state changes
+  const prevApproved = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (items.length === 0) return;
+    const approved = isReady();
+    if (approved !== prevApproved.current) {
+      prevApproved.current = approved;
+      onApprovalChange?.(approved);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [responses, items]);
 
   const getResponse = (itemId: number, role: NtsRespondentRole) =>
     responses.find(r => r.item_id === itemId && r.respondent_role === role);

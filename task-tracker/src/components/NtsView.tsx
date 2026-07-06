@@ -76,6 +76,43 @@ export default function NtsView({ profiles, currentUserId, currentUserRole }: Nt
     key, cfg, count: entries.filter(e => e.status === key).length,
   }));
 
+  // ── Timeline analytics ─────────────────────────────────────────────────────
+  const daysBetween = (a: string, b: string) =>
+    Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+
+  // Rounds where RP issued remarks — compute deadline compliance (≤3 days)
+  const roundsWithIssuedRemarks = rounds.filter(r => r.remarks_issued_at);
+  const inTimeCount = roundsWithIssuedRemarks.filter(r =>
+    daysBetween(r.received_date, r.remarks_issued_at!) <= 3
+  ).length;
+  const reviewCompliance = roundsWithIssuedRemarks.length > 0
+    ? Math.round((inTimeCount / roundsWithIssuedRemarks.length) * 100)
+    : null;
+
+  // Average days to resolve by contractor
+  const contractorTimes = rounds
+    .filter(r => r.remarks_resolved_contractor_at)
+    .map(r => daysBetween(r.received_date, r.remarks_resolved_contractor_at!));
+  const avgContractorDays = contractorTimes.length > 0
+    ? Math.round(contractorTimes.reduce((a, b) => a + b, 0) / contractorTimes.length)
+    : null;
+
+  // Average days to resolve by district
+  const districtTimes = rounds
+    .filter(r => r.remarks_resolved_district_at)
+    .map(r => daysBetween(r.received_date, r.remarks_resolved_district_at!));
+  const avgDistrictDays = districtTimes.length > 0
+    ? Math.round(districtTimes.reduce((a, b) => a + b, 0) / districtTimes.length)
+    : null;
+
+  // Rounds currently overdue (received > 3 days ago, no remarks issued yet, no approval)
+  const overdueReviews = rounds.filter(r => {
+    if (r.remarks_issued_at || r.checklist_approved) return false;
+    const deadline = new Date(r.received_date);
+    deadline.setDate(deadline.getDate() + 3);
+    return new Date() > deadline;
+  });
+
   // ── List filters ───────────────────────────────────────────────────────────
   const filtered = entries.filter(e => {
     const matchSearch = !searchQuery ||
@@ -209,6 +246,39 @@ export default function NtsView({ profiles, currentUserId, currentUserRole }: Nt
                     ))}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Timeline analytics */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <Clock size={16} className="text-indigo-500" /> Аналитика сроков рассмотрения и устранения замечаний
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <TimelineBlock
+                label="Рассмотрено в срок (≤3 дн.)"
+                value={reviewCompliance !== null ? `${reviewCompliance}%` : '—'}
+                note={roundsWithIssuedRemarks.length > 0 ? `${inTimeCount} из ${roundsWithIssuedRemarks.length} раундов` : 'Нет данных'}
+                color={reviewCompliance !== null && reviewCompliance >= 80 ? 'text-emerald-600' : reviewCompliance !== null ? 'text-red-600' : 'text-slate-400'}
+              />
+              <TimelineBlock
+                label="Просрочено рассмотрений (сейчас)"
+                value={String(overdueReviews.length)}
+                note="без выданных замечаний"
+                color={overdueReviews.length > 0 ? 'text-red-600' : 'text-emerald-600'}
+              />
+              <TimelineBlock
+                label="Среднее устранение — подрядчик"
+                value={avgContractorDays !== null ? `${avgContractorDays} дн.` : '—'}
+                note={contractorTimes.length > 0 ? `по ${contractorTimes.length} раундам` : 'Нет данных'}
+                color="text-amber-600"
+              />
+              <TimelineBlock
+                label="Среднее устранение — округ"
+                value={avgDistrictDays !== null ? `${avgDistrictDays} дн.` : '—'}
+                note={districtTimes.length > 0 ? `по ${districtTimes.length} раундам` : 'Нет данных'}
+                color="text-blue-600"
+              />
             </div>
           </div>
 
@@ -367,6 +437,16 @@ function KpiCard({ icon, label, value, bg }: { icon: React.ReactNode; label: str
       <div className="flex items-center gap-2 mb-2">{icon}</div>
       <div className="text-3xl font-bold text-slate-900 mb-1">{value}</div>
       <div className="text-xs text-slate-600 font-medium">{label}</div>
+    </div>
+  );
+}
+
+function TimelineBlock({ label, value, note, color }: { label: string; value: string; note?: string; color: string }) {
+  return (
+    <div className="text-center">
+      <div className={`text-2xl font-bold ${color}`}>{value}</div>
+      <div className="text-xs text-slate-500 mt-1 font-medium">{label}</div>
+      {note && <div className="text-xs text-slate-400 mt-0.5">{note}</div>}
     </div>
   );
 }

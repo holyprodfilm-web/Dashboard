@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X, Save, Loader2, Plus, Trash2, Calendar, ClipboardList,
-  Upload, Paperclip, ExternalLink,
+  Upload, Paperclip, ExternalLink, ChevronRight, CheckCircle2,
+  AlertTriangle, Lock, Search, Clock,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type {
@@ -19,7 +20,7 @@ interface Props {
   onSaved: () => void;
 }
 
-type TabKey = 'main' | 'sessions' | 'protocol' | 'checklist';
+type TabKey = 'main' | 'checklist' | 'sessions' | 'protocol';
 
 const EMPTY_FORM = {
   object_uin: '',
@@ -38,11 +39,15 @@ const EMPTY_FORM = {
   notes: '',
 };
 
+type AddrItem = { uin: string; name: string; district: string };
+
 export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin, onClose, onSaved }: Props) {
-  const isEdit = !!entry;
+  // savedEntry tracks the persisted record (may start null for new entries)
+  const [savedEntry, setSavedEntry] = useState<NtsEntry | null>(entry);
+  const isEdit = !!savedEntry;
+
   const [tab, setTab] = useState<TabKey>('main');
   const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [presentationDates, setPresentationDates] = useState<string[]>([]);
   const [vksDates, setVksDates] = useState<string[]>([]);
   const [sessions, setSessions] = useState<NtsSession[]>([]);
   const [rounds, setRounds] = useState<NtsDocRound[]>([]);
@@ -62,54 +67,78 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
   // Protocol file upload
   const [uploading, setUploading] = useState(false);
 
-  // Addresses for object selector
-  const [addresses, setAddresses] = useState<Array<{ uin: string; name: string }>>([]);
-  const [loadingData, setLoadingData] = useState(false);
+  // Addresses for object search combobox
+  const [addresses, setAddresses] = useState<AddrItem[]>([]);
+  const [objQuery, setObjQuery] = useState('');
+  const [objDropdownOpen, setObjDropdownOpen] = useState(false);
+  const objRef = useRef<HTMLDivElement>(null);
 
-  // Build profile options
   const managerProfiles = profiles.filter(p => ['manager', 'admin', 'module_responsible'].includes(p.role));
 
+  // Checklist gating: sessions tab unlocked only when ≥1 round is approved
+  const hasApprovedRound = rounds.some(r => r.checklist_approved);
+
+  const tabConfig: Array<{ id: TabKey; label: () => string; locked: boolean; lockReason?: string }> = [
+    { id: 'main',      label: () => 'Основное',                             locked: false },
+    { id: 'checklist', label: () => `Документация${rounds.length ? ` (${rounds.length})` : ''}`, locked: !isEdit,           lockReason: 'Сначала сохраните основные данные' },
+    { id: 'sessions',  label: () => `Заседания${sessions.length ? ` (${sessions.length})` : ''}`, locked: !isEdit || !hasApprovedRound, lockReason: 'Доступно после прохождения чек-листа' },
+    { id: 'protocol',  label: () => 'Протокол',                             locked: !isEdit,           lockReason: 'Сначала сохраните основные данные' },
+  ];
+
+  // Load addresses
   useEffect(() => {
     void (async () => {
-      setLoadingData(true);
-      const { data: addrData } = await supabase
+      const { data } = await supabase
         .from('addresses')
-        .select('"Код УИН","Наименование объекта"')
+        .select('"Код УИН","Наименование объекта","Городской округ"')
         .order('"Наименование объекта"');
-      if (addrData) {
-        setAddresses(addrData.map((a: Record<string, string>) => ({
-          uin: a['Код УИН'],
-          name: a['Наименование объекта'],
+      if (data) {
+        setAddresses(data.map((a: Record<string, string>) => ({
+          uin:      a['Код УИН'],
+          name:     a['Наименование объекта'],
+          district: a['Городской округ'] ?? '',
         })));
       }
-      setLoadingData(false);
     })();
   }, []);
 
+  // Populate form when editing existing entry
   useEffect(() => {
     if (entry) {
+      setSavedEntry(entry);
       setForm({
-        object_uin:     entry.object_uin,
-        object_name:    entry.object_name,
-        contractor:     entry.contractor,
-        contract_cost:  String(entry.contract_cost),
-        pre_nts_cost:   String(entry.pre_nts_cost),
-        post_nts_cost:  entry.post_nts_cost ? String(entry.post_nts_cost) : '',
-        mogae_cost:     entry.mogae_cost ? String(entry.mogae_cost) : '',
-        rp_main_id:     entry.rp_main_id ?? '',
-        rp2_id:         entry.rp2_id ?? '',
-        status:         entry.status,
+        object_uin:      entry.object_uin,
+        object_name:     entry.object_name,
+        contractor:      entry.contractor,
+        contract_cost:   String(entry.contract_cost),
+        pre_nts_cost:    String(entry.pre_nts_cost),
+        post_nts_cost:   entry.post_nts_cost ? String(entry.post_nts_cost) : '',
+        mogae_cost:      entry.mogae_cost ? String(entry.mogae_cost) : '',
+        rp_main_id:      entry.rp_main_id ?? '',
+        rp2_id:          entry.rp2_id ?? '',
+        status:          entry.status,
         protocol_number: entry.protocol_number ?? '',
-        protocol_date:  entry.protocol_date ?? '',
+        protocol_date:   entry.protocol_date ?? '',
         protocol_status: entry.protocol_status ?? '',
-        notes:          entry.notes ?? '',
+        notes:           entry.notes ?? '',
       });
-      setPresentationDates(entry.presentation_dates ?? []);
+      setObjQuery(entry.object_name);
       setVksDates(entry.vks_dates ?? []);
       void loadSessions(entry.id);
       void loadRounds(entry.id);
     }
   }, [entry]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (objRef.current && !objRef.current.contains(e.target as Node)) {
+        setObjDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const loadSessions = async (entryId: number) => {
     const { data } = await supabase.from('nts_sessions').select('*').eq('nts_entry_id', entryId).order('session_date');
@@ -121,95 +150,128 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
     setRounds((data as NtsDocRound[]) ?? []);
   };
 
-  const handleObjectSelect = (uin: string) => {
-    const addr = addresses.find(a => a.uin === uin);
-    setForm(f => ({ ...f, object_uin: uin, object_name: addr?.name ?? '' }));
+  // Object combobox: filtered list
+  const filteredAddrs = useMemo(() => {
+    if (!objQuery.trim()) return addresses.slice(0, 60);
+    const q = objQuery.toLowerCase();
+    return addresses.filter(a =>
+      a.name.toLowerCase().includes(q) || a.district.toLowerCase().includes(q) || a.uin.includes(q)
+    ).slice(0, 60);
+  }, [addresses, objQuery]);
+
+  const handleObjectSelect = (addr: AddrItem) => {
+    const autoRp = managerProfiles.find(p =>
+      Array.isArray(p.districts) && p.districts.includes(addr.district)
+    );
+    setForm(f => ({
+      ...f,
+      object_uin:  addr.uin,
+      object_name: addr.name,
+      rp_main_id:  autoRp ? autoRp.id : f.rp_main_id,
+    }));
+    setObjQuery(addr.name);
+    setObjDropdownOpen(false);
   };
 
   const excess = () => {
     const contract = parseFloat(form.contract_cost) || 0;
     const preNts   = parseFloat(form.pre_nts_cost) || 0;
     if (!contract) return null;
-    const diff = preNts - contract;
-    const pct  = (diff / contract) * 100;
-    return { diff, pct };
+    return { diff: preNts - contract, pct: ((preNts - contract) / contract) * 100 };
+  };
+
+  const buildPayload = () => ({
+    object_uin:      form.object_uin,
+    object_name:     form.object_name,
+    contractor:      form.contractor,
+    contract_cost:   parseFloat(form.contract_cost),
+    pre_nts_cost:    parseFloat(form.pre_nts_cost),
+    post_nts_cost:   form.post_nts_cost ? parseFloat(form.post_nts_cost) : null,
+    mogae_cost:      form.mogae_cost ? parseFloat(form.mogae_cost) : null,
+    rp_main_id:      form.rp_main_id || null,
+    rp2_id:          form.rp2_id || null,
+    status:          form.status,
+    protocol_number: form.protocol_number || null,
+    protocol_date:   form.protocol_date || null,
+    protocol_status: form.protocol_status || null,
+    notes:           form.notes || null,
+    vks_dates:       vksDates,
+    updated_at:      new Date().toISOString(),
+  });
+
+  const validateMain = () => {
+    if (!form.object_uin) { alert('Выберите объект ГП.'); return false; }
+    if (!form.contractor)  { alert('Укажите подрядчика.'); return false; }
+    if (!form.contract_cost || !form.pre_nts_cost) { alert('Укажите контрактную стоимость и стоимость до НТС.'); return false; }
+    return true;
+  };
+
+  // Save main and optionally switch tab
+  const handleSaveMain = async (goToChecklist = false) => {
+    if (!validateMain()) return;
+    setSaving(true);
+    if (isEdit) {
+      const { error } = await supabase.from('nts_entries').update(buildPayload()).eq('id', savedEntry!.id);
+      if (error) { alert('Ошибка сохранения: ' + error.message); setSaving(false); return; }
+      if (goToChecklist) setTab('checklist');
+    } else {
+      const { data, error } = await supabase.from('nts_entries')
+        .insert([{ ...buildPayload(), created_by: currentUserId }])
+        .select().single();
+      if (error || !data) { alert('Ошибка создания: ' + (error?.message ?? '')); setSaving(false); return; }
+      setSavedEntry(data as NtsEntry);
+      if (goToChecklist) setTab('checklist');
+      else onSaved();
+    }
+    setSaving(false);
   };
 
   const handleSave = async () => {
-    if (!form.object_uin || !form.contractor || !form.contract_cost || !form.pre_nts_cost) {
-      alert('Заполните обязательные поля: объект, подрядчик, контрактная стоимость, стоимость до НТС.');
-      return;
-    }
+    if (!validateMain()) return;
     setSaving(true);
-    const payload = {
-      object_uin:     form.object_uin,
-      object_name:    form.object_name,
-      contractor:     form.contractor,
-      contract_cost:  parseFloat(form.contract_cost),
-      pre_nts_cost:   parseFloat(form.pre_nts_cost),
-      post_nts_cost:  form.post_nts_cost ? parseFloat(form.post_nts_cost) : null,
-      mogae_cost:     form.mogae_cost ? parseFloat(form.mogae_cost) : null,
-      rp_main_id:     form.rp_main_id || null,
-      rp2_id:         form.rp2_id || null,
-      status:         form.status,
-      protocol_number: form.protocol_number || null,
-      protocol_date:  form.protocol_date || null,
-      protocol_status: form.protocol_status || null,
-      notes:          form.notes || null,
-      presentation_dates: presentationDates,
-      vks_dates:      vksDates,
-      updated_at:     new Date().toISOString(),
-      ...(isEdit ? {} : { created_by: currentUserId }),
-    };
-
-    if (isEdit) {
-      const { error } = await supabase.from('nts_entries').update(payload).eq('id', entry!.id);
-      if (error) { alert('Ошибка сохранения: ' + error.message); setSaving(false); return; }
-    } else {
-      const { error } = await supabase.from('nts_entries').insert([payload]);
-      if (error) { alert('Ошибка создания: ' + error.message); setSaving(false); return; }
-    }
+    const { error } = await supabase.from('nts_entries').update(buildPayload()).eq('id', savedEntry!.id);
+    if (error) { alert('Ошибка сохранения: ' + error.message); setSaving(false); return; }
     setSaving(false);
     onSaved();
   };
 
   const handleDelete = async () => {
-    if (!entry || !window.confirm('Удалить эту запись НТС? Все заседания и чек-листы будут удалены.')) return;
-    await supabase.from('nts_entries').delete().eq('id', entry.id);
+    if (!savedEntry || !window.confirm('Удалить эту запись НТС? Все заседания и чек-листы будут удалены.')) return;
+    await supabase.from('nts_entries').delete().eq('id', savedEntry.id);
     onSaved();
   };
 
   const addSession = async () => {
-    if (!entry || !newSessionDate) return;
+    if (!savedEntry || !newSessionDate) return;
     setAddingSession(true);
     await supabase.from('nts_sessions').insert([{
-      nts_entry_id: entry.id,
+      nts_entry_id: savedEntry.id,
       session_date: newSessionDate,
       remarks: newSessionRemarks || null,
       created_by: currentUserId,
     }]);
     setNewSessionDate('');
     setNewSessionRemarks('');
-    await loadSessions(entry.id);
+    await loadSessions(savedEntry.id);
     setAddingSession(false);
   };
 
   const deleteSession = async (id: number) => {
     if (!window.confirm('Удалить заседание?')) return;
     await supabase.from('nts_sessions').delete().eq('id', id);
-    if (entry) await loadSessions(entry.id);
+    if (savedEntry) await loadSessions(savedEntry.id);
   };
 
   const addRound = async () => {
-    if (!entry || !newRoundDate) return;
+    if (!savedEntry || !newRoundDate) return;
     setAddingRound(true);
     const { data } = await supabase.from('nts_doc_rounds').insert([{
-      nts_entry_id: entry.id,
+      nts_entry_id: savedEntry.id,
       received_date: newRoundDate,
       created_by: currentUserId,
     }]).select().single();
     setNewRoundDate('');
-    await loadRounds(entry.id);
+    await loadRounds(savedEntry.id);
     setAddingRound(false);
     if (data) {
       setChecklistRoundId(data.id);
@@ -220,30 +282,51 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
   const deleteRound = async (id: number) => {
     if (!window.confirm('Удалить раунд документации (с чек-листом)?')) return;
     await supabase.from('nts_doc_rounds').delete().eq('id', id);
-    if (entry) await loadRounds(entry.id);
+    if (savedEntry) await loadRounds(savedEntry.id);
+  };
+
+  // Update a single field on a round
+  const updateRoundField = async (roundId: number, field: string, value: string | null) => {
+    await supabase.from('nts_doc_rounds').update({ [field]: value || null }).eq('id', roundId);
+    if (savedEntry) await loadRounds(savedEntry.id);
   };
 
   const uploadProtocolFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !entry) return;
+    if (!file || !savedEntry) return;
     setUploading(true);
-    const fileName = `nts/${entry.id}/protocol_${Date.now()}_${file.name}`;
+    const fileName = `nts/${savedEntry.id}/protocol_${Date.now()}_${file.name}`;
     const { error } = await supabase.storage.from('protocols').upload(fileName, file, { upsert: true });
-    if (error) {
-      alert('Ошибка загрузки файла: ' + error.message);
-    } else {
-      await supabase.from('nts_entries').update({ protocol_file_path: fileName }).eq('id', entry.id);
-      setForm(f => ({ ...f }));
-    }
+    if (error) alert('Ошибка загрузки файла: ' + error.message);
+    else await supabase.from('nts_entries').update({ protocol_file_path: fileName }).eq('id', savedEntry.id);
     setUploading(false);
   };
 
-  const getFileUrl = async (path: string) => {
-    const { data } = supabase.storage.from('protocols').getPublicUrl(path);
-    return data.publicUrl;
-  };
+  const getFileUrl = (path: string) => supabase.storage.from('protocols').getPublicUrl(path).data.publicUrl;
 
   const exValue = excess();
+
+  // Days between two dates (positive = overdue)
+  const daysDiff = (from: string, to: string | null) => {
+    if (!to) return null;
+    return Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000);
+  };
+
+  const reviewDeadlineBadge = (receivedDate: string, issuedAt: string | null) => {
+    const deadline = new Date(receivedDate);
+    deadline.setDate(deadline.getDate() + 3);
+    const now = issuedAt ? new Date(issuedAt) : new Date();
+    const diff = Math.round((now.getTime() - deadline.getTime()) / 86400000);
+    if (issuedAt) {
+      return diff <= 0
+        ? <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-medium">✓ В срок</span>
+        : <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">Просрочено на {diff} дн.</span>;
+    }
+    const daysLeft = Math.round((deadline.getTime() - new Date().getTime()) / 86400000);
+    if (daysLeft < 0)
+      return <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium flex items-center gap-1"><AlertTriangle size={11}/>Просрочено {Math.abs(daysLeft)} дн.</span>;
+    return <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium flex items-center gap-1"><Clock size={11}/>Осталось {daysLeft} дн.</span>;
+  };
 
   return (
     <>
@@ -256,32 +339,28 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                 <h2 className="text-xl font-bold text-slate-900">
                   {isEdit ? 'Редактировать НТС' : 'Создать запись НТС'}
                 </h2>
-                {isEdit && (
-                  <p className="text-sm text-slate-500 mt-0.5">{entry.object_name}</p>
-                )}
+                {isEdit && <p className="text-sm text-slate-500 mt-0.5">{savedEntry!.object_name}</p>}
               </div>
-              <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1">
-                <X size={22} />
-              </button>
+              <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1"><X size={22} /></button>
             </div>
 
-            {/* Tabs */}
+            {/* Wizard tabs */}
             <nav className="flex gap-1 bg-slate-100 p-1 rounded-xl mt-4 w-fit">
-              {([
-                { id: 'main',      label: 'Основное' },
-                { id: 'sessions',  label: `Заседания${sessions.length ? ` (${sessions.length})` : ''}` },
-                { id: 'protocol',  label: 'Протокол' },
-                { id: 'checklist', label: `Документация${rounds.length ? ` (${rounds.length})` : ''}` },
-              ] as const).map(t => (
+              {tabConfig.map((t, idx) => (
                 <button
                   key={t.id}
-                  onClick={() => setTab(t.id)}
-                  disabled={!isEdit && t.id !== 'main'}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                    tab === t.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  title={t.locked ? t.lockReason : undefined}
+                  onClick={() => !t.locked && setTab(t.id)}
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all
+                    ${tab === t.id ? 'bg-white text-slate-900 shadow-sm' : t.locked ? 'text-slate-400 cursor-not-allowed' : 'text-slate-600 hover:text-slate-900'}
+                  `}
                 >
-                  {t.label}
+                  {idx > 0 && <ChevronRight size={12} className="text-slate-300" />}
+                  {t.locked && <Lock size={11} className="opacity-60" />}
+                  {t.label()}
+                  {t.id === 'checklist' && hasApprovedRound && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 ml-0.5" />
+                  )}
                 </button>
               ))}
             </nav>
@@ -289,27 +368,44 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
 
           {/* Body */}
           <div className="p-6">
-            {/* ── MAIN TAB ───────────────────────────────────────────── */}
+
+            {/* ── MAIN TAB ─────────────────────────────────────────────── */}
             {tab === 'main' && (
               <div className="space-y-5">
-                {/* Object selector */}
-                <div>
+                {/* Object combobox */}
+                <div ref={objRef} className="relative">
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Объект ГП <span className="text-red-500">*</span>
                   </label>
-                  {loadingData ? (
-                    <div className="flex items-center gap-2 text-slate-400 text-sm"><Loader2 size={14} className="animate-spin" /> Загрузка…</div>
-                  ) : (
-                    <select
-                      value={form.object_uin}
-                      onChange={e => handleObjectSelect(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                    >
-                      <option value="">— Выберите объект —</option>
-                      {addresses.map(a => (
-                        <option key={a.uin} value={a.uin}>{a.name} ({a.uin})</option>
+                  <div className="relative">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={objQuery}
+                      onChange={e => { setObjQuery(e.target.value); setObjDropdownOpen(true); setForm(f => ({ ...f, object_uin: '', object_name: '' })); }}
+                      onFocus={() => setObjDropdownOpen(true)}
+                      placeholder="Поиск по названию или округу…"
+                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                    />
+                  </div>
+                  {form.object_uin && (
+                    <p className="mt-1 text-xs text-emerald-600 flex items-center gap-1">
+                      <CheckCircle2 size={12}/> {form.object_uin}
+                    </p>
+                  )}
+                  {objDropdownOpen && filteredAddrs.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                      {filteredAddrs.map(a => (
+                        <button
+                          key={a.uin}
+                          onMouseDown={() => handleObjectSelect(a)}
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-indigo-50 border-b border-slate-50 last:border-0"
+                        >
+                          <span className="font-medium text-slate-800">{a.name}</span>
+                          <span className="ml-2 text-xs text-slate-400">{a.district}</span>
+                        </button>
                       ))}
-                    </select>
+                    </div>
                   )}
                 </div>
 
@@ -327,22 +423,16 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                 {/* Costs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label="Контрактная стоимость, тыс. руб." required>
-                    <input
-                      type="number"
-                      value={form.contract_cost}
+                    <input type="number" value={form.contract_cost}
                       onChange={e => setForm(f => ({ ...f, contract_cost: e.target.value }))}
                       placeholder="1000000"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                    />
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
                   </Field>
                   <Field label="Стоимость до НТС, тыс. руб." required>
-                    <input
-                      type="number"
-                      value={form.pre_nts_cost}
+                    <input type="number" value={form.pre_nts_cost}
                       onChange={e => setForm(f => ({ ...f, pre_nts_cost: e.target.value }))}
                       placeholder="1300000"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                    />
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
                   </Field>
                 </div>
 
@@ -358,116 +448,175 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                   </div>
                 )}
 
-                {/* Optional fields */}
+                {/* Optional costs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label="Утверждённая стоимость МОГЭ, тыс. руб.">
-                    <input
-                      type="number"
-                      value={form.mogae_cost}
+                    <input type="number" value={form.mogae_cost}
                       onChange={e => setForm(f => ({ ...f, mogae_cost: e.target.value }))}
                       placeholder="не указана"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                    />
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
                   </Field>
                   <Field label="Стоимость после НТС, тыс. руб.">
-                    <input
-                      type="number"
-                      value={form.post_nts_cost}
+                    <input type="number" value={form.post_nts_cost}
                       onChange={e => setForm(f => ({ ...f, post_nts_cost: e.target.value }))}
                       placeholder="не указана"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                    />
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
                   </Field>
                 </div>
 
                 {/* RPs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label="Главный РП">
-                    <select
-                      value={form.rp_main_id}
+                    <select value={form.rp_main_id}
                       onChange={e => setForm(f => ({ ...f, rp_main_id: e.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                    >
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none">
                       <option value="">— Не назначен —</option>
-                      {managerProfiles.map(p => (
-                        <option key={p.id} value={p.id}>{p.full_name}</option>
-                      ))}
+                      {managerProfiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                     </select>
+                    {form.rp_main_id && form.object_uin && (
+                      <p className="text-xs text-indigo-500 mt-1 flex items-center gap-1"><CheckCircle2 size={11}/>Подобран автоматически по округу</p>
+                    )}
                   </Field>
                   <Field label="РП2">
-                    <select
-                      value={form.rp2_id}
+                    <select value={form.rp2_id}
                       onChange={e => setForm(f => ({ ...f, rp2_id: e.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                    >
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none">
                       <option value="">— Не назначен —</option>
-                      {managerProfiles.map(p => (
-                        <option key={p.id} value={p.id}>{p.full_name}</option>
-                      ))}
+                      {managerProfiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                     </select>
                   </Field>
                 </div>
 
                 {/* Status */}
                 <Field label="Статус НТС">
-                  <select
-                    value={form.status}
+                  <select value={form.status}
                     onChange={e => setForm(f => ({ ...f, status: e.target.value as NtsStatus }))}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                  >
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none">
                     {Object.entries(NTS_STATUS_CONFIG).map(([k, v]) => (
                       <option key={k} value={k}>{v.label}</option>
                     ))}
                   </select>
                 </Field>
 
-                {/* Presentation dates */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Даты предоставления презентаций</label>
-                  <div className="space-y-1.5">
-                    {presentationDates.map((d, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <input
-                          type="date"
-                          value={d}
-                          onChange={e => {
-                            const arr = [...presentationDates];
-                            arr[i] = e.target.value;
-                            setPresentationDates(arr);
-                          }}
-                          className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400"
-                        />
-                        <button onClick={() => setPresentationDates(arr => arr.filter((_, j) => j !== i))}
-                          className="text-slate-400 hover:text-red-500 transition">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => setPresentationDates(arr => [...arr, ''])}
-                      className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                    >
-                      <Plus size={13} /> Добавить дату
-                    </button>
-                  </div>
-                </div>
-
                 {/* Notes */}
                 <Field label="Примечания">
-                  <textarea
-                    value={form.notes}
+                  <textarea value={form.notes}
                     onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                    rows={3}
-                    placeholder="Свободный текст…"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none"
-                  />
+                    rows={3} placeholder="Свободный текст…"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none" />
                 </Field>
               </div>
             )}
 
-            {/* ── SESSIONS TAB ───────────────────────────────────────── */}
+            {/* ── CHECKLIST / DOKUMENTATSIYA TAB ───────────────────────── */}
+            {tab === 'checklist' && (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-500">
+                  У РП есть <strong>3 рабочих дня</strong> с момента получения документации: согласовать чек-лист или выдать перечень замечаний.
+                </p>
+
+                {rounds.length === 0 && (
+                  <div className="text-center py-8 text-slate-400">
+                    <ClipboardList size={28} className="mx-auto mb-2 opacity-30" />
+                    <p>Документация ещё не поступала</p>
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {rounds.map((r, idx) => {
+                    const deadline3 = new Date(r.received_date);
+                    deadline3.setDate(deadline3.getDate() + 3);
+                    const contractorDays = daysDiff(r.received_date, r.remarks_resolved_contractor_at);
+                    const districtDays   = daysDiff(r.received_date, r.remarks_resolved_district_at);
+
+                    return (
+                      <div key={r.id} className={`border rounded-xl overflow-hidden ${r.checklist_approved ? 'border-emerald-200' : 'border-slate-200'}`}>
+                        {/* Round header */}
+                        <div className={`px-4 py-3 flex items-center justify-between flex-wrap gap-2 ${r.checklist_approved ? 'bg-emerald-50' : 'bg-slate-50'}`}>
+                          <div className="flex items-center gap-2">
+                            {r.checklist_approved
+                              ? <CheckCircle2 size={16} className="text-emerald-500" />
+                              : <ClipboardList size={16} className="text-slate-400" />}
+                            <span className="font-medium text-slate-800">Раунд {idx + 1}</span>
+                            <span className="text-sm text-slate-500">— получен {new Date(r.received_date).toLocaleDateString('ru-RU')}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {r.checklist_approved
+                              ? <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-medium">✓ Чек-лист пройден</span>
+                              : reviewDeadlineBadge(r.received_date, r.remarks_issued_at)
+                            }
+                            <button
+                              onClick={() => { setChecklistRoundId(r.id); setChecklistOpen(true); }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-medium hover:bg-indigo-100 transition"
+                            >
+                              <ClipboardList size={13} /> Чек-лист
+                            </button>
+                            <button onClick={() => deleteRound(r.id)} className="text-slate-400 hover:text-red-500 transition">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Round fields */}
+                        <div className="px-4 py-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <RoundDateField
+                            label="Дата предоставления презентации"
+                            value={r.presentation_date ?? ''}
+                            onChange={v => updateRoundField(r.id, 'presentation_date', v)}
+                          />
+                          <RoundDateField
+                            label="Дата выдачи замечаний РП"
+                            value={r.remarks_issued_at ?? ''}
+                            onChange={v => updateRoundField(r.id, 'remarks_issued_at', v)}
+                            hint={`Дедлайн: ${deadline3.toLocaleDateString('ru-RU')}`}
+                          />
+                          <RoundDateField
+                            label="Замечания устранены (подрядчик)"
+                            value={r.remarks_resolved_contractor_at ?? ''}
+                            onChange={v => updateRoundField(r.id, 'remarks_resolved_contractor_at', v)}
+                            hint={contractorDays !== null ? `${contractorDays} дн. с поступления` : undefined}
+                          />
+                          <RoundDateField
+                            label="Замечания устранены (округ)"
+                            value={r.remarks_resolved_district_at ?? ''}
+                            onChange={v => updateRoundField(r.id, 'remarks_resolved_district_at', v)}
+                            hint={districtDays !== null ? `${districtDays} дн. с поступления` : undefined}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Add round */}
+                <div className="border border-dashed border-slate-200 rounded-xl p-4 space-y-3">
+                  <p className="text-sm font-medium text-slate-700">Зафиксировать получение документов</p>
+                  <div className="flex items-end gap-3">
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">Дата получения</label>
+                      <input type="date" value={newRoundDate}
+                        onChange={e => setNewRoundDate(e.target.value)}
+                        className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400" />
+                    </div>
+                    <button onClick={addRound} disabled={!newRoundDate || addingRound}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                      {addingRound ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                      Принять документы
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── SESSIONS TAB ─────────────────────────────────────────── */}
             {tab === 'sessions' && (
               <div className="space-y-4">
+                {!hasApprovedRound && (
+                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+                    <Lock size={16} className="mt-0.5 shrink-0" />
+                    <span>Заседание можно назначить только после полного прохождения чек-листа по хотя бы одному раунду документации.</span>
+                  </div>
+                )}
                 <p className="text-sm text-slate-500">История заседаний ВКС и замечаний по объекту.</p>
                 {sessions.length === 0 && (
                   <div className="text-center py-8 text-slate-400">
@@ -492,71 +641,53 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                   ))}
                 </div>
 
-                {/* Add session form */}
-                <div className="border border-dashed border-slate-200 rounded-xl p-4 space-y-3">
-                  <p className="text-sm font-medium text-slate-700">Добавить заседание</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {hasApprovedRound && (
+                  <div className="border border-dashed border-slate-200 rounded-xl p-4 space-y-3">
+                    <p className="text-sm font-medium text-slate-700">Добавить заседание</p>
                     <div>
                       <label className="text-xs text-slate-500 mb-1 block">Дата ВКС</label>
-                      <input
-                        type="date"
-                        value={newSessionDate}
+                      <input type="date" value={newSessionDate}
                         onChange={e => setNewSessionDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400"
-                      />
+                        className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400" />
                     </div>
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1 block">Замечания</label>
+                      <textarea value={newSessionRemarks}
+                        onChange={e => setNewSessionRemarks(e.target.value)}
+                        rows={2} placeholder="Текст замечаний…"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 resize-none" />
+                    </div>
+                    <button onClick={addSession} disabled={!newSessionDate || addingSession}
+                      className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                      {addingSession ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                      Добавить заседание
+                    </button>
                   </div>
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Замечания</label>
-                    <textarea
-                      value={newSessionRemarks}
-                      onChange={e => setNewSessionRemarks(e.target.value)}
-                      rows={2}
-                      placeholder="Текст замечаний…"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 resize-none"
-                    />
-                  </div>
-                  <button
-                    onClick={addSession}
-                    disabled={!newSessionDate || addingSession}
-                    className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    {addingSession ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                    Добавить заседание
-                  </button>
-                </div>
+                )}
               </div>
             )}
 
-            {/* ── PROTOCOL TAB ───────────────────────────────────────── */}
+            {/* ── PROTOCOL TAB ─────────────────────────────────────────── */}
             {tab === 'protocol' && (
               <div className="space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label="Номер протокола">
-                    <input
-                      type="text"
-                      value={form.protocol_number}
+                    <input type="text" value={form.protocol_number}
                       onChange={e => setForm(f => ({ ...f, protocol_number: e.target.value }))}
                       placeholder="№ 123/2025"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                    />
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
                   </Field>
                   <Field label="Дата подписания">
-                    <input
-                      type="date"
-                      value={form.protocol_date}
+                    <input type="date" value={form.protocol_date}
                       onChange={e => setForm(f => ({ ...f, protocol_date: e.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                    />
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" />
                   </Field>
                 </div>
 
                 <Field label="Статус протокола">
-                  <select
-                    value={form.protocol_status}
+                  <select value={form.protocol_status}
                     onChange={e => setForm(f => ({ ...f, protocol_status: e.target.value as NtsProtocolStatus | '' }))}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                  >
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none">
                     <option value="">— Не указан —</option>
                     {Object.entries(NTS_PROTOCOL_STATUS_CONFIG).map(([k, v]) => (
                       <option key={k} value={k}>{v.label}</option>
@@ -567,24 +698,20 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                 {/* File upload */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Файл протокола (PDF / Word)</label>
-                  {entry?.protocol_file_path ? (
-                    <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                  {savedEntry?.protocol_file_path ? (
+                    <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-200 mb-2">
                       <Paperclip size={16} className="text-emerald-600" />
-                      <span className="text-sm text-emerald-700 truncate flex-1">{entry.protocol_file_path.split('/').pop()}</span>
+                      <span className="text-sm text-emerald-700 truncate flex-1">{savedEntry.protocol_file_path.split('/').pop()}</span>
                       <button
-                        onClick={async () => {
-                          const url = await getFileUrl(entry.protocol_file_path!);
-                          window.open(url, '_blank');
-                        }}
-                        className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
-                      >
+                        onClick={() => window.open(getFileUrl(savedEntry.protocol_file_path!), '_blank')}
+                        className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
                         <ExternalLink size={12} /> Открыть
                       </button>
                     </div>
                   ) : (
                     <p className="text-sm text-slate-400 mb-2">Файл не прикреплён</p>
                   )}
-                  <label className={`flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 cursor-pointer hover:bg-slate-100 transition w-fit mt-2 ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <label className={`flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 cursor-pointer hover:bg-slate-100 transition w-fit ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
                     {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
                     {uploading ? 'Загрузка…' : 'Прикрепить файл'}
                     <input type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={uploadProtocolFile} />
@@ -597,89 +724,18 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                   <div className="space-y-1.5">
                     {vksDates.map((d, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <input
-                          type="date"
-                          value={d}
-                          onChange={e => {
-                            const arr = [...vksDates];
-                            arr[i] = e.target.value;
-                            setVksDates(arr);
-                          }}
-                          className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400"
-                        />
-                        <button onClick={() => setVksDates(arr => arr.filter((_, j) => j !== i))}
-                          className="text-slate-400 hover:text-red-500 transition">
-                          <Trash2 size={14} />
-                        </button>
+                        <input type="date" value={d}
+                          onChange={e => { const a = [...vksDates]; a[i] = e.target.value; setVksDates(a); }}
+                          className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400" />
+                        <button onClick={() => setVksDates(a => a.filter((_, j) => j !== i))}
+                          className="text-slate-400 hover:text-red-500 transition"><Trash2 size={14} /></button>
                       </div>
                     ))}
-                    <button
-                      onClick={() => setVksDates(arr => [...arr, ''])}
-                      className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                    >
+                    <button onClick={() => setVksDates(a => [...a, ''])}
+                      className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium">
                       <Plus size={13} /> Добавить дату ВКС
                     </button>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── CHECKLIST / DOC ROUNDS TAB ─────────────────────────── */}
-            {tab === 'checklist' && (
-              <div className="space-y-4">
-                <p className="text-sm text-slate-500">Каждый раунд — отдельный пакет документов с чек-листом из 61 пункта.</p>
-
-                {rounds.length === 0 && (
-                  <div className="text-center py-8 text-slate-400">
-                    <ClipboardList size={28} className="mx-auto mb-2 opacity-30" />
-                    <p>Документация ещё не поступала</p>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  {rounds.map((r, idx) => (
-                    <div key={r.id} className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-slate-800">
-                          Раунд {idx + 1}: документы получены {new Date(r.received_date).toLocaleDateString('ru-RU')}
-                        </div>
-                        {r.notes && <div className="text-xs text-slate-500 mt-0.5">{r.notes}</div>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => { setChecklistRoundId(r.id); setChecklistOpen(true); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-medium hover:bg-indigo-100 transition"
-                        >
-                          <ClipboardList size={13} /> Чек-лист
-                        </button>
-                        <button onClick={() => deleteRound(r.id)} className="text-slate-400 hover:text-red-500 transition">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Add round */}
-                <div className="border border-dashed border-slate-200 rounded-xl p-4 space-y-3">
-                  <p className="text-sm font-medium text-slate-700">Зафиксировать получение документов</p>
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Дата получения</label>
-                    <input
-                      type="date"
-                      value={newRoundDate}
-                      onChange={e => setNewRoundDate(e.target.value)}
-                      className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400"
-                    />
-                  </div>
-                  <button
-                    onClick={addRound}
-                    disabled={!newRoundDate || addingRound}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    {addingRound ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                    Принять документы и открыть чек-лист
-                  </button>
                 </div>
               </div>
             )}
@@ -687,28 +743,43 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
 
           {/* Footer */}
           <div className="p-6 border-t border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div>
               {isEdit && isAdmin && (
-                <button
-                  onClick={handleDelete}
-                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-xl text-sm font-medium transition"
-                >
+                <button onClick={handleDelete}
+                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-xl text-sm font-medium transition">
                   <Trash2 size={15} /> Удалить
                 </button>
               )}
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-xl text-sm font-medium transition">
-                Отмена
+              <button onClick={onClose}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-50 rounded-xl text-sm font-medium transition">
+                {isEdit ? 'Закрыть' : 'Отмена'}
               </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition shadow-sm shadow-indigo-600/20"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                {isEdit ? 'Сохранить' : 'Создать'}
-              </button>
+
+              {tab === 'main' && !isEdit && (
+                <button onClick={() => handleSaveMain(true)} disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition shadow-sm shadow-indigo-600/20">
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <ChevronRight size={14} />}
+                  Далее
+                </button>
+              )}
+
+              {tab === 'main' && isEdit && (
+                <button onClick={handleSave} disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition shadow-sm shadow-indigo-600/20">
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  Сохранить
+                </button>
+              )}
+
+              {tab === 'protocol' && isEdit && (
+                <button onClick={handleSave} disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition shadow-sm shadow-indigo-600/20">
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  Сохранить протокол
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -723,6 +794,10 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
           profiles={profiles}
           currentUserId={currentUserId}
           onClose={() => setChecklistOpen(false)}
+          onApprovalChange={async (approved) => {
+            await supabase.from('nts_doc_rounds').update({ checklist_approved: approved }).eq('id', checklistRoundId);
+            if (savedEntry) await loadRounds(savedEntry.id);
+          }}
         />
       )}
     </>
@@ -736,6 +811,26 @@ function Field({ label, required, children }: { label: string; required?: boolea
         {label}{required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       {children}
+    </div>
+  );
+}
+
+function RoundDateField({
+  label, value, onChange, hint,
+}: { label: string; value: string; onChange: (v: string) => void; hint?: string }) {
+  const [localVal, setLocalVal] = useState(value);
+  useEffect(() => setLocalVal(value), [value]);
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      <input
+        type="date"
+        value={localVal}
+        onChange={e => setLocalVal(e.target.value)}
+        onBlur={() => { if (localVal !== value) onChange(localVal); }}
+        className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400"
+      />
+      {hint && <p className="text-xs text-slate-400 mt-0.5">{hint}</p>}
     </div>
   );
 }
