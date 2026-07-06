@@ -5,3 +5,12 @@
 body {
   @apply bg-[#FAF7F5] text-slate-800 font-sans min-h-screen antialiased;
 }
+
+@keyframes shrink-bar {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+
+.animate-shrink-bar {
+  animation: shrink-bar linear forwards;
+}

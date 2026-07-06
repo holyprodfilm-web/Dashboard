@@ -1,15 +1,21 @@
 import { useState, useEffect } from 'react';
-import { X, User, Mail, Shield, Key, Save, Loader2, Check, Eye, EyeOff, MapPin, Search } from 'lucide-react';
+import { X, User, Mail, Shield, Key, Save, Loader2, Check, Eye, EyeOff, MapPin, Search, Trophy } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { ROLE_LABELS, ROLE_COLORS } from '../types';
+import AchievementsView from './AchievementsView';
 
 interface Props {
   onClose: () => void;
+  openAchievements?: boolean;
 }
 
-export default function UserProfileModal({ onClose }: Props) {
+type ProfileTab = 'profile' | 'achievements';
+
+export default function UserProfileModal({ onClose, openAchievements = false }: Props) {
   const { user, profile, reloadProfile } = useAuth();
+
+  const [tab, setTab] = useState<ProfileTab>(openAchievements ? 'achievements' : 'profile');
 
   // Name editing
   const [fullName, setFullName] = useState(profile?.full_name || '');
@@ -160,7 +166,40 @@ export default function UserProfileModal({ onClose }: Props) {
           </div>
         </div>
 
-        <div className="p-6 space-y-6 max-h-[72vh] overflow-y-auto">
+        {/* Tabs */}
+        <div className="flex gap-1 px-6 pt-4 bg-white border-b border-slate-100">
+          <button
+            onClick={() => setTab('profile')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-t-lg text-sm font-medium border-b-2 transition ${
+              tab === 'profile'
+                ? 'border-teal-500 text-teal-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <User size={14} /> Профиль
+          </button>
+          <button
+            onClick={() => setTab('achievements')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-t-lg text-sm font-medium border-b-2 transition ${
+              tab === 'achievements'
+                ? 'border-amber-500 text-amber-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Trophy size={14} /> Достижения
+          </button>
+        </div>
+
+        {/* Achievements tab */}
+        {tab === 'achievements' && user && (
+          <div className="p-6 max-h-[65vh] overflow-y-auto">
+            <AchievementsView userId={user.id} />
+          </div>
+        )}
+
+        {/* Profile tab */}
+        {tab === 'profile' && (
+        <div className="p-6 space-y-6 max-h-[65vh] overflow-y-auto">
           {/* Profile info */}
           <section>
             <h3 className="text-sm font-semibold text-[#8A4C08] uppercase tracking-wide mb-3 flex items-center gap-2">
@@ -414,6 +453,7 @@ export default function UserProfileModal({ onClose }: Props) {
             </div>
           </section>
         </div>
+        )}
       </div>
     </div>
   );

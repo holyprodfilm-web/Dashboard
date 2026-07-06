@@ -19,6 +19,8 @@ import ClosureView from './components/ClosureView';
 import NtsView from './components/NtsView';
 import BackupViewer from './components/BackupViewer';
 import Toast from './components/Toast';
+import AchievementToastQueue from './components/AchievementToast';
+import { useAchievements } from './hooks/useAchievements';
 
 function AppContent() {
   const { user, profile, loading, signOut, reloadProfile } = useAuth();
@@ -45,6 +47,7 @@ function AppContent() {
     return null;
   });
   const [showProfile, setShowProfile] = useState(false);
+  const [showAchievements, setShowAchievements] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
   const [showReconnectToast, setShowReconnectToast] = useState(false);
   const [reconnectRefreshing, setReconnectRefreshing] = useState(false);
@@ -54,6 +57,8 @@ function AppContent() {
   const hadErrorRef = useRef(false);
   const currentRoleRef = useRef<string | null>(null);
   const currentDistrictsRef = useRef<string[] | null | undefined>(undefined);
+
+  const { pendingToasts, dismissToast } = useAchievements(user?.id);
 
   // Keep currentRoleRef and currentDistrictsRef in sync so the realtime handler can compare old vs new values
   useEffect(() => {
@@ -514,7 +519,10 @@ function AppContent() {
           <BackupViewer />
         )}
         {showProfile && (
-          <UserProfileModal onClose={() => setShowProfile(false)} />
+          <UserProfileModal
+            onClose={() => { setShowProfile(false); setShowAchievements(false); }}
+            openAchievements={showAchievements}
+          />
         )}
         {view === 'detail' && selectedMeetingId && (
           <MeetingDetailView
@@ -542,6 +550,11 @@ function AppContent() {
           onClose={() => setRoleChangeToast(null)}
         />
       )}
+      <AchievementToastQueue
+        toasts={pendingToasts}
+        onDismiss={dismissToast}
+        onOpenAchievements={() => { setShowAchievements(true); setShowProfile(true); }}
+      />
     </div>
   );
 }

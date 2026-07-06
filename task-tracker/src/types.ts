@@ -225,6 +225,14 @@ export const STATUS_CONFIG: Record<string, { label: string; color: string; bg: s
   overdue:     { label: 'Просрочено',color: 'text-[#E93A58]',   bg: 'bg-[#FFF0F3]'  },
 };
 
+export interface UserAchievement {
+  id: string;
+  user_id: string;
+  achievement_id: string;
+  earned_at: string;
+  notified: boolean;
+}
+
 export const ORGANIZATIONS = [
   'Министерство энергетики Московской области',
   'ГБУ МО «Мособлтепло»',
