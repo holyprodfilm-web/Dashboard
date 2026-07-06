@@ -194,6 +194,7 @@ function AppContent() {
         if (status === 'SUBSCRIBED') {
           if (hadErrorRef.current) {
             setShowReconnectToast(true);
+            void loadAllData();
             hadErrorRef.current = false;
           }
           setRealtimeStatus('live');
@@ -209,7 +210,7 @@ function AppContent() {
       void supabase.removeChannel(channel);
       setRealtimeStatus('connecting');
     };
-  }, [user]);
+  }, [user, loadAllData]);
 
   if (loading || (user && dataLoading)) {
     return (
