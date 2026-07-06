@@ -28,6 +28,7 @@ function AppContent() {
   const [selectedManager, setSelectedManager] = useState<string>('');
   const [objectsStatusFilter, setObjectsStatusFilter] = useState<'in_work' | 'completed' | 'overdue' | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
 
   const loadAllData = useCallback(async () => {
     if (!user) return;
@@ -74,6 +75,8 @@ function AppContent() {
   useEffect(() => {
     if (!user) return;
 
+    setRealtimeStatus('connecting');
+
     const channel = supabase
       .channel('tasks-live')
       .on(
@@ -96,10 +99,19 @@ function AppContent() {
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setRealtimeStatus('live');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setRealtimeStatus('error');
+        } else {
+          setRealtimeStatus('connecting');
+        }
+      });
 
     return () => {
       void supabase.removeChannel(channel);
+      setRealtimeStatus('connecting');
     };
   }, [user]);
 
@@ -143,6 +155,45 @@ function AppContent() {
                   <Home size={18} /> На главную
                 </button>
               )}
+
+              {/* Real-time sync indicator */}
+              <div
+                className="flex items-center gap-1.5"
+                title={
+                  realtimeStatus === 'live'
+                    ? 'Данные синхронизируются в реальном времени'
+                    : realtimeStatus === 'error'
+                    ? 'Соединение с сервером потеряно'
+                    : 'Подключение к серверу…'
+                }
+              >
+                {realtimeStatus === 'live' && (
+                  <>
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                    </span>
+                    <span className="text-xs font-medium text-emerald-600 hidden sm:inline">Live</span>
+                  </>
+                )}
+                {realtimeStatus === 'error' && (
+                  <>
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400" />
+                    </span>
+                    <span className="text-xs font-medium text-amber-600 hidden sm:inline">Офлайн</span>
+                  </>
+                )}
+                {realtimeStatus === 'connecting' && (
+                  <>
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-300 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400" />
+                    </span>
+                    <span className="text-xs font-medium text-slate-400 hidden sm:inline">Синхр…</span>
+                  </>
+                )}
+              </div>
 
               <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
                 <div className="text-right hidden md:block">
