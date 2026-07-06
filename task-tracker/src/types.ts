@@ -37,8 +37,9 @@ export interface Profile {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'manager' | 'analyst' | 'guest' | 'module_responsible';
+  role: 'admin' | 'manager' | 'analyst' | 'guest';
   districts?: string[] | null;
+  responsible_modules?: string[] | null;
   created_at?: string;
 }
 

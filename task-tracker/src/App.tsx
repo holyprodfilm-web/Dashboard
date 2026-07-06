@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { Home, Target, Loader2, LogOut, AlertCircle, UserCircle } from 'lucide-react';
+import NotificationBell from './components/NotificationBell';
 import UserProfileModal from './components/UserProfileModal';
 import type { View, Meeting, Task, Address, Profile, RolePermission } from './types';
 import { ROLE_LABELS, ROLE_COLORS } from './types';
@@ -110,15 +111,22 @@ function AppContent() {
     setDataLoading(false);
   }, [user]);
 
-  // Module access guard: admin always has access; others check role_permissions (deny-by-default)
+  // Module access guard: admin always has access; responsible_modules designation grants access too
   const hasModule = useCallback((module: string): boolean => {
     if (!profile) return false;
     if (profile.role === 'admin') return true;
+    if (profile.responsible_modules?.includes(module)) return true;
     const perm = rolePermissions.find(p => p.role === profile.role && p.module === module);
-    // If permissions loaded and entry found → use it; if not yet loaded → allow (loading state)
     if (rolePermissions.length === 0) return true;
     return perm?.can_access ?? false;
   }, [profile, rolePermissions]);
+
+  // Admin-level access within a specific module (admin role OR responsible_modules designation)
+  const isModuleAdmin = useCallback((module: string): boolean => {
+    if (!profile) return false;
+    if (profile.role === 'admin') return true;
+    return profile.responsible_modules?.includes(module) ?? false;
+  }, [profile]);
 
   const visibleMeetings = useMemo(
     () => filterMeetingsForRole(meetings, profile),
@@ -350,11 +358,29 @@ function AppContent() {
                 )}
               </div>
 
+              <NotificationBell
+                tasks={visibleTasks}
+                moduleAccess={
+                  profile?.role === 'admin'
+                    ? { dashboard: true, objects: true, closure: true, nts: true }
+                    : Object.fromEntries(
+                        ['dashboard', 'objects', 'closure', 'nts'].map(mod => [mod, hasModule(mod)])
+                      )
+                }
+              />
+
               <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
                 <div className="text-right hidden md:block">
                   <div className="text-sm font-medium text-slate-900">{profile?.full_name}</div>
-                  <div className={`text-xs px-2 py-0.5 rounded-full inline-block mt-0.5 ${ROLE_COLORS[profile?.role || 'guest']}`}>
-                    {ROLE_LABELS[profile?.role || 'guest']}
+                  <div className="flex items-center gap-1 justify-end flex-wrap mt-0.5">
+                    <div className={`text-xs px-2 py-0.5 rounded-full inline-block ${ROLE_COLORS[profile?.role || 'guest']}`}>
+                      {ROLE_LABELS[profile?.role || 'guest']}
+                    </div>
+                    {(profile?.responsible_modules?.length ?? 0) > 0 && (
+                      <div className="text-xs px-2 py-0.5 rounded-full inline-block bg-orange-100 text-orange-700">
+                        Отв. за модуль
+                      </div>
+                    )}
                   </div>
                 </div>
                 <button
@@ -413,12 +439,7 @@ function AppContent() {
               profile?.role === 'admin'
                 ? undefined
                 : Object.fromEntries(
-                    ['dashboard', 'objects', 'closure', 'nts'].map(mod => {
-                      const perm = rolePermissions.find(
-                        p => p.role === (profile?.role ?? 'guest') && p.module === mod
-                      );
-                      return [mod, perm?.can_access ?? true];
-                    })
+                    ['dashboard', 'objects', 'closure', 'nts'].map(mod => [mod, hasModule(mod)])
                   ) as Record<string, boolean>
             }
           />
@@ -464,7 +485,7 @@ function AppContent() {
             addresses={addresses}
             tasks={visibleTasks}
             meetings={visibleMeetings}
-            isAdmin={profile?.role === 'admin'}
+            isAdmin={isModuleAdmin('objects')}
             onReload={loadAllData}
             statusFilter={objectsStatusFilter}
             onClearFilter={() => setObjectsStatusFilter(null)}
@@ -475,6 +496,7 @@ function AppContent() {
             profiles={profiles}
             currentUserId={profile?.id}
             currentUserRole={profile?.role}
+            isModuleAdmin={isModuleAdmin('nts')}
           />
         )}
         {view === 'users' && profile?.role === 'admin' && (

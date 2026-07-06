@@ -12,11 +12,12 @@ interface NtsViewProps {
   profiles: Profile[];
   currentUserId?: string;
   currentUserRole?: string;
+  isModuleAdmin?: boolean;
 }
 
 type TabType = 'dashboard' | 'list';
 
-export default function NtsView({ profiles, currentUserId, currentUserRole }: NtsViewProps) {
+export default function NtsView({ profiles, currentUserId, currentUserRole, isModuleAdmin }: NtsViewProps) {
   const [entries, setEntries] = useState<NtsEntry[]>([]);
   const [sessions, setSessions] = useState<NtsSession[]>([]);
   const [rounds, setRounds] = useState<NtsDocRound[]>([]);
@@ -27,7 +28,7 @@ export default function NtsView({ profiles, currentUserId, currentUserRole }: Nt
   const [selectedEntry, setSelectedEntry] = useState<NtsEntry | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const isAdmin = currentUserRole === 'admin';
+  const isAdmin = currentUserRole === 'admin' || (isModuleAdmin ?? false);
 
   const loadData = useCallback(async () => {
     setLoading(true);

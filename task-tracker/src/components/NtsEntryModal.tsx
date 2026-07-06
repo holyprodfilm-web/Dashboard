@@ -73,7 +73,9 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
   const [objDropdownOpen, setObjDropdownOpen] = useState(false);
   const objRef = useRef<HTMLDivElement>(null);
 
-  const managerProfiles = profiles.filter(p => ['manager', 'admin', 'module_responsible'].includes(p.role));
+  const managerProfiles = profiles.filter(p =>
+    ['manager', 'admin'].includes(p.role) || (p.responsible_modules?.includes('nts') ?? false)
+  );
 
   // Checklist gating: sessions tab unlocked only when ≥1 round is approved
   const hasApprovedRound = rounds.some(r => r.checklist_approved);
