@@ -17,7 +17,12 @@ import BootstrapAdminBanner from './components/BootstrapAdminBanner';
 
 function AppContent() {
   const { user, profile, loading, signOut, reloadProfile } = useAuth();
-  const [view, setView] = useState<View>('home');
+  const [view, setView] = useState<View>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const kpi = params.get('kpi');
+    if (kpi && ['in_work', 'completed', 'overdue'].includes(kpi)) return 'objects';
+    return 'home';
+  });
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -26,9 +31,31 @@ function AppContent() {
   const [dataError, setDataError] = useState('');
   const [selectedMeetingId, setSelectedMeetingId] = useState<number | null>(null);
   const [selectedManager, setSelectedManager] = useState<string>('');
-  const [objectsStatusFilter, setObjectsStatusFilter] = useState<'in_work' | 'completed' | 'overdue' | null>(null);
+  const [objectsStatusFilter, setObjectsStatusFilter] = useState<'in_work' | 'completed' | 'overdue' | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const kpi = params.get('kpi');
+    if (kpi && ['in_work', 'completed', 'overdue'].includes(kpi)) {
+      return kpi as 'in_work' | 'completed' | 'overdue';
+    }
+    return null;
+  });
   const [showProfile, setShowProfile] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
+
+  // Sync ?kpi= URL param with the external status filter (for shareability)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (view === 'objects' && objectsStatusFilter) {
+      params.set('kpi', objectsStatusFilter);
+    } else {
+      params.delete('kpi');
+    }
+    const newSearch = params.toString();
+    const newUrl = newSearch
+      ? `${window.location.pathname}?${newSearch}`
+      : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+  }, [view, objectsStatusFilter]);
 
   const loadAllData = useCallback(async () => {
     if (!user) return;
