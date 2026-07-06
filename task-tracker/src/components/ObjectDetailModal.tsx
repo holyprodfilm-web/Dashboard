@@ -24,7 +24,12 @@ export default function ObjectDetailModal({ address, allTasks, allMeetings, focu
   const [highlightedTaskId, setHighlightedTaskId] = useState<number | null>(focusTaskId ?? null);
   const taskRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    if (!focusTaskId) return 'all';
+    const focusedTask = allTasks.find(t => t.id === focusTaskId);
+    if (!focusedTask) return 'all';
+    return getAutoStatus(focusedTask.status, focusedTask.deadline);
+  });
 
   const objectTasks = allTasks.filter(t => t.object_uin === uin);
   const meetingMap = new Map(allMeetings.map(m => [m.id, m]));
