@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, Fragment } from 'react';
 import {
   Loader2, AlertCircle, CheckCircle2, Clock3, XCircle, MinusCircle,
   Building2, ChevronDown, ChevronUp, Search, RefreshCw, TrendingUp,
-  BarChart2, AlertTriangle, Layers, Pencil, Upload, History,
+  BarChart2, AlertTriangle, Layers, Pencil, Upload, History, Calendar,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -27,7 +27,10 @@ const FIELD_LABELS: Record<string, string> = {
   remaining_sum:  'Остаток',
   comment:        'Комментарий',
   smr_completed:  'СМР выполнено',
+  typical_block:  'Блок причин',
   typical_cause:  'Причина',
+  payment_reason: 'Обоснование',
+  payment_date:   'Дата оплаты',
   actions:        'Действия',
 };
 
@@ -141,6 +144,8 @@ function ObjectsTable({
     ) : rows;
   }, [rows, q]);
 
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-3">
@@ -153,7 +158,7 @@ function ObjectsTable({
         <span className="text-xs text-slate-400">{filtered.length} из {rows.length}</span>
       </div>
       <div className="overflow-x-auto rounded-xl border border-slate-200">
-        <table className="w-full text-xs min-w-[1060px]">
+        <table className="w-full text-xs min-w-[1180px]">
           <thead className="bg-slate-50 text-slate-600 uppercase">
             <tr>
               <th className="px-3 py-2 text-left font-semibold w-6">#</th>
@@ -165,6 +170,7 @@ function ObjectsTable({
               <th className="px-3 py-2 text-right font-semibold">Контракт, млн</th>
               <th className="px-3 py-2 text-right font-semibold">Оплачено, млн</th>
               <th className="px-3 py-2 text-right font-semibold">Остаток, млн</th>
+              <th className="px-3 py-2 text-left font-semibold">Дата оплаты</th>
               <th className="px-3 py-2 text-left font-semibold">МОГЭ</th>
               <th className="px-3 py-2 text-left font-semibold">СМР</th>
               {canEdit && <th className="px-3 py-2 w-8" />}
@@ -172,12 +178,18 @@ function ObjectsTable({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 ? (
-              <tr><td colSpan={canEdit ? 12 : 11} className="text-center py-10 text-slate-400">Нет данных</td></tr>
+              <tr><td colSpan={canEdit ? 13 : 12} className="text-center py-10 text-slate-400">Нет данных</td></tr>
             ) : filtered.map((r, i) => {
               const cfg = PAYMENT_CFG[r.payment_status];
+              const pdDate = r.payment_date ? new Date(r.payment_date) : null;
+              if (pdDate) pdDate.setHours(0, 0, 0, 0);
+              const isOverdue = pdDate && pdDate < today
+                && r.payment_status !== 'paid' && r.payment_status !== 'terminated';
+              const daysDiff = pdDate ? Math.round((pdDate.getTime() - today.getTime()) / 86400000) : null;
+              const isSoon = !isOverdue && daysDiff !== null && daysDiff >= 0 && daysDiff <= 30;
               return (
                 <tr key={r.id}
-                  className={`transition group ${canEdit ? 'hover:bg-teal-50 cursor-pointer' : 'hover:bg-slate-50'}`}
+                  className={`transition group ${isOverdue ? 'bg-[#FFF0F3]' : ''} ${canEdit ? 'hover:bg-teal-50 cursor-pointer' : 'hover:bg-slate-50'}`}
                   onClick={() => canEdit && onEdit?.(r)}
                 >
                   <td className="px-3 py-2 text-slate-400">{i + 1}</td>
@@ -193,6 +205,22 @@ function ObjectsTable({
                   <td className="px-3 py-2 text-right tabular-nums">{fmtMlnN(r.contract_sum)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-emerald-600">{fmtMlnN(r.paid_sum)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-[#E93A58]">{fmtMlnN(r.remaining_sum)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {pdDate ? (
+                      <span className={`text-xs font-medium ${
+                        isOverdue ? 'text-[#E93A58] font-bold' : isSoon ? 'text-amber-600' : 'text-slate-500'
+                      }`}>
+                        {isOverdue && '⚠ '}
+                        {pdDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: '2-digit' })}
+                        {daysDiff !== null && !isOverdue && (
+                          <span className="ml-1 text-[10px] text-slate-400">({daysDiff}д)</span>
+                        )}
+                        {isOverdue && daysDiff !== null && (
+                          <span className="ml-1 text-[10px]">({Math.abs(daysDiff)}д)</span>
+                        )}
+                      </span>
+                    ) : <span className="text-slate-300">—</span>}
+                  </td>
                   <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{r.mogae_status ?? '—'}</td>
                   <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{r.smr_completed ?? '—'}</td>
                   {canEdit && (
@@ -546,16 +574,131 @@ function HistoryTab({ changes, loading }: { changes: ClosureChange[]; loading: b
   );
 }
 
+// ── Payment Schedule tab ─────────────────────────────────────────────────────
+
+function ScheduleGroup({
+  label, count, remain, accent, icon, objects, onEdit, canEdit, defaultOpen = false,
+}: {
+  label: string; count: number; remain: number; accent: string; icon: React.ReactNode;
+  objects: ClosureObject[]; onEdit: (r: ClosureObject) => void; canEdit: boolean; defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  if (count === 0) return null;
+  return (
+    <div className="rounded-2xl overflow-hidden shadow-sm border" style={{ borderColor: accent + '40' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-6 py-4 text-white"
+        style={{ background: `linear-gradient(135deg, ${accent}, ${accent}cc)` }}
+      >
+        <div className="flex items-center gap-3">
+          <span className="opacity-80">{icon}</span>
+          <span className="font-bold text-base">{label}</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-2xl font-black">{count}</div>
+            <div className="text-xs opacity-75">объектов · {fmtMoney(remain)} остаток</div>
+          </div>
+          {open ? <ChevronUp size={18} className="opacity-70" /> : <ChevronDown size={18} className="opacity-70" />}
+        </div>
+      </button>
+      {open && (
+        <div className="bg-white px-4 py-4">
+          <ObjectsTable rows={objects} onEdit={onEdit} canEdit={canEdit} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PaymentScheduleTab({ data, onEdit, canEdit }: {
+  data: ClosureObject[]; onEdit: (r: ClosureObject) => void; canEdit: boolean;
+}) {
+  const today = useMemo(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0); return d;
+  }, []);
+
+  const { overdue, soon, future, noDate } = useMemo(() => {
+    const active = data.filter(r => r.payment_status !== 'paid' && r.payment_status !== 'terminated');
+    const overdue: ClosureObject[] = [], soon: ClosureObject[] = [],
+          future: ClosureObject[] = [], noDate: ClosureObject[] = [];
+    const SOON_MS = 30 * 24 * 3600 * 1000;
+    active.forEach(r => {
+      if (!r.payment_date) { noDate.push(r); return; }
+      const d = new Date(r.payment_date); d.setHours(0, 0, 0, 0);
+      const diff = d.getTime() - today.getTime();
+      if (diff < 0) overdue.push(r);
+      else if (diff <= SOON_MS) soon.push(r);
+      else future.push(r);
+    });
+    const byDate = (a: ClosureObject, b: ClosureObject) =>
+      (a.payment_date ?? '9999').localeCompare(b.payment_date ?? '9999');
+    return { overdue: overdue.sort(byDate), soon: soon.sort(byDate),
+             future: future.sort(byDate), noDate };
+  }, [data, today]);
+
+  const sumRemain = (arr: ClosureObject[]) => arr.reduce((s, r) => s + (r.remaining_sum ?? 0), 0);
+
+  const kpis = [
+    { label: 'Просрочено',    count: overdue.length, remain: sumRemain(overdue), accent: '#E93A58', icon: <AlertTriangle size={20} /> },
+    { label: 'До 30 дней',    count: soon.length,    remain: sumRemain(soon),    accent: '#d97706', icon: <Clock3 size={20} /> },
+    { label: 'Более 30 дней', count: future.length,  remain: sumRemain(future),  accent: '#0891b2', icon: <Calendar size={20} /> },
+    { label: 'Без даты',      count: noDate.length,  remain: sumRemain(noDate),  accent: '#94a3b8', icon: <MinusCircle size={20} /> },
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* KPI row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {kpis.map(k => (
+          <div key={k.label} className="bg-white rounded-2xl p-5 shadow-sm border-t-4" style={{ borderTopColor: k.accent }}>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-xs font-700 uppercase tracking-wide text-slate-500 mb-1">{k.label}</div>
+                <div className="text-4xl font-black leading-none" style={{ color: k.accent }}>{k.count}</div>
+                <div className="text-xs text-slate-400 mt-1">{fmtMoney(k.remain)} остаток</div>
+              </div>
+              <span style={{ color: k.accent }} className="opacity-50 mt-1">{k.icon}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Groups */}
+      <ScheduleGroup label="🚨 Просрочено" count={overdue.length} remain={sumRemain(overdue)}
+        accent="#E93A58" icon={<AlertTriangle size={18} />}
+        objects={overdue} onEdit={onEdit} canEdit={canEdit} defaultOpen />
+      <ScheduleGroup label="⏳ До 30 дней" count={soon.length} remain={sumRemain(soon)}
+        accent="#d97706" icon={<Clock3 size={18} />}
+        objects={soon} onEdit={onEdit} canEdit={canEdit} defaultOpen />
+      <ScheduleGroup label="📅 Более 30 дней" count={future.length} remain={sumRemain(future)}
+        accent="#0891b2" icon={<Calendar size={18} />}
+        objects={future} onEdit={onEdit} canEdit={canEdit} />
+      <ScheduleGroup label="Без даты оплаты" count={noDate.length} remain={sumRemain(noDate)}
+        accent="#94a3b8" icon={<MinusCircle size={18} />}
+        objects={noDate} onEdit={onEdit} canEdit={canEdit} />
+
+      {overdue.length === 0 && soon.length === 0 && future.length === 0 && noDate.length === 0 && (
+        <div className="text-center py-16 text-slate-400">
+          <CheckCircle2 size={48} className="mx-auto mb-3 text-emerald-400 opacity-50" />
+          <p className="font-medium">Все активные объекты оплачены</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-type TabId = 'payments' | 'contractors' | 'causes' | 'history' | 'dynamics';
+type TabId = 'payments' | 'contractors' | 'causes' | 'schedule' | 'dynamics';
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'payments',    label: 'Оплаты',            icon: <CheckCircle2 size={16} /> },
-  { id: 'contractors', label: 'Подрядчики',         icon: <Building2 size={16} /> },
-  { id: 'causes',      label: 'Причины',            icon: <Layers size={16} /> },
-  { id: 'history',     label: 'История',            icon: <History size={16} /> },
-  { id: 'dynamics',    label: 'Динамика',           icon: <BarChart2 size={16} /> },
+  { id: 'payments',    label: 'Оплаты',             icon: <CheckCircle2 size={16} /> },
+  { id: 'contractors', label: 'Подрядчики',          icon: <Building2 size={16} /> },
+  { id: 'causes',      label: 'Причины',             icon: <Layers size={16} /> },
+  { id: 'schedule',    label: 'График оплаты',       icon: <Calendar size={16} /> },
+  { id: 'dynamics',    label: 'Динамика',            icon: <BarChart2 size={16} /> },
 ];
 
 const MOGAE_ITEMS = [
@@ -578,6 +721,7 @@ export default function ClosureView() {
   const [statusFilter, setStatusFilter] = useState<PaymentStatus | null>(null);
   const [editRecord, setEditRecord]   = useState<ClosureObject | null>(null);
   const [showImport, setShowImport]   = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -672,6 +816,13 @@ export default function ClosureView() {
               <Upload size={15} /> Импорт Excel
             </button>
           )}
+          <button onClick={() => setShowHistory(true)}
+            className="relative flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:text-violet-700 hover:bg-violet-50 rounded-xl transition font-medium border border-slate-200">
+            <History size={15} /> История
+            {changes.length > 0 && (
+              <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[9px] font-black bg-violet-500 text-white rounded-full leading-none">{changes.length}</span>
+            )}
+          </button>
           <button onClick={() => { void load(); void loadChanges(); }}
             className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition font-medium border border-slate-200">
             <RefreshCw size={15} /> Обновить
@@ -702,9 +853,6 @@ export default function ClosureView() {
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
               >
                 {t.icon} {t.label}
-                {t.id === 'history' && changes.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-white/30 rounded-full">{changes.length}</span>
-                )}
               </button>
             ))}
           </div>
@@ -809,9 +957,9 @@ export default function ClosureView() {
             <CausesTab data={latest} onEdit={setEditRecord} canEdit={canEdit} />
           )}
 
-          {/* ── TAB: History ── */}
-          {tab === 'history' && (
-            <HistoryTab changes={changes} loading={histLoad} />
+          {/* ── TAB: Schedule ── */}
+          {tab === 'schedule' && (
+            <PaymentScheduleTab data={latest} onEdit={setEditRecord} canEdit={canEdit} />
           )}
 
           {/* ── TAB: Dynamics ── */}
@@ -832,6 +980,30 @@ export default function ClosureView() {
           onClose={() => setShowImport(false)}
           onImported={() => { setShowImport(false); void load(); void loadChanges(); }}
         />
+      )}
+
+      {/* История — отдельная панель поверх содержимого */}
+      {showHistory && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-stretch justify-end"
+          onClick={() => setShowHistory(false)}>
+          <div className="bg-white w-full max-w-3xl flex flex-col shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <History size={18} className="text-violet-500" />
+                <h3 className="font-bold text-slate-800">История изменений</h3>
+                <span className="px-2 py-0.5 text-xs font-bold bg-violet-100 text-violet-600 rounded-full">{changes.length}</span>
+              </div>
+              <button onClick={() => setShowHistory(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
+                <XCircle size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <HistoryTab changes={changes} loading={histLoad} />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

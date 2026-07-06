@@ -20,6 +20,7 @@ export interface ClosureObject {
   remaining_sum: number;
   typical_cause: string | null;
   payment_reason: string | null;
+  payment_date: string | null;
   actions: string;
   comment: string;
   snapshot_date: string;

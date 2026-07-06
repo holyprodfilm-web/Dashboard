@@ -14,7 +14,10 @@ const FIELD_LABELS: Record<string, string> = {
   remaining_sum:  'Остаток',
   comment:        'Комментарий',
   smr_completed:  'СМР выполнено',
+  typical_block:  'Блок причин',
   typical_cause:  'Типичная причина',
+  payment_reason: 'Обоснование',
+  payment_date:   'Дата оплаты',
   actions:        'Действия',
 };
 
@@ -65,7 +68,10 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
   const [autoRemain, setAutoRemain]       = useState(false);
   const [comment, setComment]             = useState(record.comment ?? '');
   const [smr, setSmr]                     = useState(record.smr_completed ?? '');
+  const [typicalBlock, setTypicalBlock]   = useState(record.typical_block ?? '');
   const [cause, setCause]                 = useState(record.typical_cause ?? '');
+  const [paymentReason, setPaymentReason] = useState(record.payment_reason ?? '');
+  const [paymentDate, setPaymentDate]     = useState(record.payment_date ?? '');
   const [actions, setActions]             = useState(record.actions ?? '');
 
   const [saving, setSaving]     = useState(false);
@@ -108,7 +114,10 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
       remaining_sum:  parseMln(remainMln),
       comment,
       smr_completed:  smr || null,
+      typical_block:  typicalBlock || null,
       typical_cause:  cause || null,
+      payment_reason: paymentReason || null,
+      payment_date:   paymentDate || null,
       actions,
     };
 
@@ -128,7 +137,10 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
     checkField('remaining_sum',  record.remaining_sum,  updates.remaining_sum);
     checkField('comment',        record.comment,        updates.comment);
     checkField('smr_completed',  record.smr_completed,  updates.smr_completed);
+    checkField('typical_block',  record.typical_block,  updates.typical_block);
     checkField('typical_cause',  record.typical_cause,  updates.typical_cause);
+    checkField('payment_reason', record.payment_reason, updates.payment_reason);
+    checkField('payment_date',   record.payment_date,   updates.payment_date);
     checkField('actions',        record.actions,        updates.actions);
 
     if (changedFields.length === 0) { setSaving(false); onClose(); return; }
@@ -281,6 +293,33 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
             />
           </div>
 
+          {/* Causes section */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Блок причин</label>
+            <input value={typicalBlock} onChange={e => setTypicalBlock(e.target.value)}
+              placeholder="Напр.: Долгая передача ИД, 65.1 Формирование пакета…"
+              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Типичная причина</label>
+              <input value={cause} onChange={e => setCause(e.target.value)} placeholder="Уточнение причины задержки"
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Дата оплаты</label>
+              <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Обоснование оплаты</label>
+            <textarea
+              value={paymentReason} onChange={e => setPaymentReason(e.target.value)} rows={2}
+              placeholder="Статус согласования ИД, ссылки на документы…"
+              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
+            />
+          </div>
           {/* Extra fields */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -289,18 +328,10 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
                 className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Типичная причина</label>
-              <input value={cause} onChange={e => setCause(e.target.value)} placeholder="Причина задержки"
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Действия</label>
+              <input value={actions} onChange={e => setActions(e.target.value)} placeholder="Принятые меры"
                 className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
             </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Действия</label>
-            <textarea
-              value={actions} onChange={e => setActions(e.target.value)} rows={2}
-              placeholder="Принятые меры…"
-              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
-            />
           </div>
 
           {saveErr && (

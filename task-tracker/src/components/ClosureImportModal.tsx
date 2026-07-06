@@ -9,7 +9,7 @@ import type { PaymentStatus, MogaeStatus } from '../types';
 type ImportField = 'uin' | 'omsu' | 'object_name' | 'contractor' | 'object_type'
   | 'mogae_approved' | 'mogae_status' | 'typical_block' | 'smr_completed'
   | 'payment_status' | 'contract_sum' | 'paid_sum' | 'remaining_sum'
-  | 'typical_cause' | 'payment_reason' | 'actions' | 'comment' | 'snapshot_date';
+  | 'typical_cause' | 'payment_reason' | 'payment_date' | 'actions' | 'comment' | 'snapshot_date';
 
 const REQUIRED_FIELDS: ImportField[] = ['omsu', 'object_name'];
 
@@ -21,6 +21,7 @@ const COL_DETECT: Array<{ field: ImportField; patterns: string[] }> = [
   { field: 'object_type',    patterns: ['тип объекта', 'тип', 'object_type'] },
   { field: 'mogae_approved', patterns: ['одобрено могэ', 'могэ одобрено', 'approved'] },
   { field: 'mogae_status',   patterns: ['статус в могэ', 'статус могэ', 'mogae'] },
+  { field: 'payment_date',   patterns: ['дата оплаты', 'плановая дата оплаты', 'крайняя дата оплаты', 'payment_date', 'срок оплаты'] },
   { field: 'typical_block',  patterns: ['типовой блок', 'блок', 'block'] },
   { field: 'smr_completed',  patterns: ['смр', 'smr', 'строительно'] },
   { field: 'payment_status', patterns: ['статус оплаты', 'payment_status', 'оплата статус'] },
@@ -117,6 +118,7 @@ interface ParsedRow {
   remaining_sum: number;
   typical_cause: string | null;
   payment_reason: string | null;
+  payment_date: string | null;
   actions: string;
   comment: string;
   snapshot_date: string;
@@ -179,6 +181,9 @@ export default function ClosureImportModal({ onClose, onImported }: Props) {
             remaining_sum:  remainSum,
             typical_cause:  getStr(row, 'typical_cause') || null,
             payment_reason: getStr(row, 'payment_reason') || null,
+            payment_date:   colMap.payment_date
+              ? (normalizeDate(row[colMap.payment_date!]) || null)
+              : null,
             actions:        getStr(row, 'actions'),
             comment:        getStr(row, 'comment'),
             snapshot_date:  colMap.snapshot_date
