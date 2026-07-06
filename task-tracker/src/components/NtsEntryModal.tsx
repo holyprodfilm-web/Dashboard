@@ -236,6 +236,7 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
     notes:           form.notes || null,
     vks_dates:       vksDates,
     updated_at:      new Date().toISOString(),
+    updated_by:      currentUserId ?? null,
   });
 
   const validateMain = () => {

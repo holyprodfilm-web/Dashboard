@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FlaskConical, Plus, RefreshCw, Loader2, ChevronRight, FileText, CheckCircle2,
   Clock, AlertTriangle, TrendingUp, Users, Banknote, BarChart3, Search, Filter,
@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import type { NtsEntry, NtsDocRound, Profile } from '../types';
 import { NTS_STATUS_CONFIG, NTS_PROTOCOL_STATUS_CONFIG } from '../types';
 import NtsEntryModal from './NtsEntryModal';
+import Toast from './Toast';
 
 interface NtsViewProps {
   profiles: Profile[];
@@ -29,6 +30,9 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedEntry, setSelectedEntry] = useState<NtsEntry | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [statusChangeToast, setStatusChangeToast] = useState<string | null>(null);
+  // Keep a ref to the current entries so the realtime closure can compare old vs new status
+  const entriesRef = useRef<NtsEntry[]>([]);
 
   const isAdmin = currentUserRole === 'admin' || (isModuleAdmin ?? false);
 
@@ -49,6 +53,80 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   }, []);
 
   useEffect(() => { void loadData(); }, [loadData]);
+
+  // Keep entriesRef in sync so the realtime closure can compare statuses without stale state
+  useEffect(() => { entriesRef.current = entries; }, [entries]);
+
+  // Real-time subscription: keep NTS tables in sync when other users make changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('nts-live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'nts_entries' },
+        (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as NtsEntry & { updated_by?: string | null };
+            // Notify if another user changed the status or protocol_status
+            const existing = entriesRef.current.find(e => e.id === updated.id);
+            const changedByOther = !updated.updated_by || updated.updated_by !== currentUserId;
+            if (existing && changedByOther) {
+              const statusChanged = existing.status !== updated.status;
+              const protoChanged  = existing.protocol_status !== updated.protocol_status;
+              if (statusChanged || protoChanged) {
+                const label = updated.object_name || `Объект #${updated.id}`;
+                const newStatusLabel = NTS_STATUS_CONFIG[updated.status]?.label ?? updated.status;
+                const parts = [`«${label}»`];
+                if (statusChanged) parts.push(`статус: ${newStatusLabel}`);
+                if (protoChanged && updated.protocol_status) {
+                  parts.push(`протокол: ${NTS_PROTOCOL_STATUS_CONFIG[updated.protocol_status]?.label ?? updated.protocol_status}`);
+                }
+                setStatusChangeToast(parts.join(' — '));
+              }
+            }
+          }
+          setEntries((prev) => {
+            if (payload.eventType === 'INSERT') {
+              return [payload.new as NtsEntry, ...prev];
+            }
+            if (payload.eventType === 'UPDATE') {
+              return prev.map((e) =>
+                e.id === (payload.new as NtsEntry).id ? (payload.new as NtsEntry) : e
+              );
+            }
+            if (payload.eventType === 'DELETE') {
+              return prev.filter((e) => e.id !== (payload.old as NtsEntry).id);
+            }
+            return prev;
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'nts_doc_rounds' },
+        (payload) => {
+          setRounds((prev) => {
+            if (payload.eventType === 'INSERT') {
+              return [payload.new as NtsDocRound, ...prev];
+            }
+            if (payload.eventType === 'UPDATE') {
+              return prev.map((r) =>
+                r.id === (payload.new as NtsDocRound).id ? (payload.new as NtsDocRound) : r
+              );
+            }
+            if (payload.eventType === 'DELETE') {
+              return prev.filter((r) => r.id !== (payload.old as NtsDocRound).id);
+            }
+            return prev;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, []);
 
   const profileMap = new Map(profiles.map(p => [p.id, p]));
   const districtByUin = new Map(addresses.map(a => [a.uin, a.district]));
@@ -482,6 +560,15 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
           isAdmin={isAdmin}
           onClose={() => { setSelectedEntry(null); setShowCreateModal(false); }}
           onSaved={() => { setSelectedEntry(null); setShowCreateModal(false); void loadData(); }}
+        />
+      )}
+
+      {/* ── Status-change notification ─────────────────────────────────── */}
+      {statusChangeToast && (
+        <Toast
+          message={`Изменение НТС: ${statusChangeToast}`}
+          duration={6000}
+          onClose={() => setStatusChangeToast(null)}
         />
       )}
     </div>
