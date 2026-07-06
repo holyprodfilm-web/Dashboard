@@ -55,6 +55,14 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
     return stored && valid.includes(stored) ? stored : null;
   });
 
+  // Track whether the active filter was set from a shared link (?status= URL param)
+  const [filterFromSharedLink, setFilterFromSharedLink] = useState<boolean>(() => {
+    const valid = ['overdue', 'in_progress', 'new', 'completed'];
+    const params = new URLSearchParams(window.location.search);
+    const s = params.get('status');
+    return !!(s && valid.includes(s));
+  });
+
   // Keep URL and sessionStorage in sync with the active filter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -185,6 +193,30 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
               </button>
             </div>
           )}
+          {/* Shared-link filter indicator */}
+          {localStatusFilter && filterFromSharedLink && (() => {
+            const cfg = STATUS_CONFIG[localStatusFilter];
+            return (
+              <div className="mb-2 flex items-center gap-2">
+                <div className="flex items-center gap-2 text-xs px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg font-medium">
+                  <LinkIcon size={12} className="text-amber-500 shrink-0" />
+                  <span>
+                    Ссылка открыта с фильтром:{' '}
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md font-semibold ${cfg?.bg ?? ''} ${cfg?.color ?? ''}`}>
+                      {cfg?.label ?? localStatusFilter}
+                    </span>
+                  </span>
+                  <button
+                    onClick={() => { setLocalStatusFilter(null); setFilterFromSharedLink(false); }}
+                    className="ml-1 flex items-center gap-1 px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-md transition"
+                  >
+                    <XIcon size={11} />
+                    Сбросить
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
           {/* Health summary badge row */}
           {tasks.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -195,7 +227,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                 return (
                   <button
                     key={s}
-                    onClick={() => setLocalStatusFilter(isActive ? null : s)}
+                    onClick={() => { setLocalStatusFilter(isActive ? null : s); setFilterFromSharedLink(false); }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition
                       ${isActive
                         ? `${cfg.bg} ${cfg.color} border-current shadow-sm ring-2 ring-offset-1 ring-current/30`
@@ -211,7 +243,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
               {localStatusFilter && (
                 <>
                   <button
-                    onClick={() => setLocalStatusFilter(null)}
+                    onClick={() => { setLocalStatusFilter(null); setFilterFromSharedLink(false); }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-500 hover:bg-slate-100 transition"
                     title="Сбросить фильтр"
                   >
