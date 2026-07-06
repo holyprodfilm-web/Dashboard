@@ -78,6 +78,7 @@ export default function MeetingDetailView({
     if (!window.confirm('Удалить связь?')) return;
     await supabase.from('task_links').delete().eq('id', linkId);
     await loadLinks();
+    setToast('Связь удалена');
   };
 
   const getLinksForTask = (taskId: number) =>
