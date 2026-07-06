@@ -22,15 +22,11 @@ export function filterTasksForRole(
     );
     return tasks.filter(t => managerMeetingIds.has(t.meeting_id));
   }
-  if (profile.role === 'contractor') {
-    return tasks.filter(t => t.responsible === profile.full_name);
-  }
+  // analyst sees all tasks (read-only, handled at component level)
   return tasks;
 }
 
-export function canEditTask(task: Task, profile: Profile | null): boolean {
+export function canEditTask(_task: Task, profile: Profile | null): boolean {
   if (!profile) return false;
-  if (profile.role === 'admin' || profile.role === 'manager') return true;
-  if (profile.role === 'contractor') return task.responsible === profile.full_name;
-  return false;
+  return profile.role === 'admin' || profile.role === 'manager';
 }

@@ -17,6 +17,8 @@ interface Module {
 interface HomePageProps {
   onNavigate: (view: ModuleId) => void;
   isAdmin?: boolean;
+  /** Map of module id → whether current role has can_access=true (undefined = allow) */
+  moduleAccess?: Partial<Record<ModuleId, boolean>>;
 }
 
 const MODULES: Module[] = [
@@ -59,8 +61,13 @@ const MODULES: Module[] = [
   },
 ];
 
-export default function HomePage({ onNavigate, isAdmin }: HomePageProps) {
-  const modules = MODULES.filter(m => !m.adminOnly || isAdmin);
+export default function HomePage({ onNavigate, isAdmin, moduleAccess }: HomePageProps) {
+  const modules = MODULES.filter(m => {
+    if (m.adminOnly) return isAdmin;
+    // If access map says false for this module, hide it
+    if (moduleAccess && moduleAccess[m.id] === false) return false;
+    return true;
+  });
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4">
@@ -81,15 +88,8 @@ export default function HomePage({ onNavigate, isAdmin }: HomePageProps) {
             <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 ${module.bg} ${module.text} group-hover:scale-110 transition-transform duration-300`}>
               {module.icon}
             </div>
-
-            <h3 className="text-2xl font-bold text-slate-900 mb-3">
-              {module.title}
-            </h3>
-
-            <p className="text-slate-500 text-sm leading-relaxed mb-4">
-              {module.description}
-            </p>
-
+            <h3 className="text-2xl font-bold text-slate-900 mb-3">{module.title}</h3>
+            <p className="text-slate-500 text-sm leading-relaxed mb-4">{module.description}</p>
             <div className={`flex items-center ${module.text} font-medium text-sm`}>
               Открыть раздел
               <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />

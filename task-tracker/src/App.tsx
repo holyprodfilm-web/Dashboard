@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { Home, Target, Loader2, LogOut, AlertCircle, UserCircle } from 'lucide-react';
 import UserProfileModal from './components/UserProfileModal';
-import type { View, Meeting, Task, Address, Profile } from './types';
+import type { View, Meeting, Task, Address, Profile, RolePermission } from './types';
 import { ROLE_LABELS, ROLE_COLORS } from './types';
 import { supabase } from './lib/supabase';
 import { filterMeetingsForRole, filterTasksForRole } from './lib/dataFilters';
@@ -47,6 +47,7 @@ function AppContent() {
   const [reconnectRefreshing, setReconnectRefreshing] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [roleChangeToast, setRoleChangeToast] = useState<string | null>(null);
+  const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
   const hadErrorRef = useRef(false);
   const currentRoleRef = useRef<string | null>(null);
   const currentDistrictsRef = useRef<string[] | null | undefined>(undefined);
@@ -87,14 +88,15 @@ function AppContent() {
     setDataLoading(true);
     setDataError('');
 
-    const [addrRes, meetRes, taskRes, profileRes] = await Promise.all([
+    const [addrRes, meetRes, taskRes, profileRes, permRes] = await Promise.all([
       supabase.from('addresses').select('*'),
       supabase.from('meetings').select('*').order('meeting_date', { ascending: false }),
       supabase.from('tasks').select('*'),
       supabase.from('profiles').select('*'),
+      supabase.from('role_permissions').select('*'),
     ]);
 
-    const errors = [addrRes.error, meetRes.error, taskRes.error, profileRes.error].filter(Boolean);
+    const errors = [addrRes.error, meetRes.error, taskRes.error, profileRes.error, permRes.error].filter(Boolean);
     if (errors.length > 0) {
       setDataError(errors.map(e => e!.message).join('; '));
     }
@@ -103,8 +105,19 @@ function AppContent() {
     if (meetRes.data) setMeetings(meetRes.data);
     if (taskRes.data) setTasks(taskRes.data);
     if (profileRes.data) setProfiles(profileRes.data);
+    if (permRes.data) setRolePermissions(permRes.data as RolePermission[]);
     setDataLoading(false);
   }, [user]);
+
+  // Module access guard: admin always has access; others check role_permissions (deny-by-default)
+  const hasModule = useCallback((module: string): boolean => {
+    if (!profile) return false;
+    if (profile.role === 'admin') return true;
+    const perm = rolePermissions.find(p => p.role === profile.role && p.module === module);
+    // If permissions loaded and entry found → use it; if not yet loaded → allow (loading state)
+    if (rolePermissions.length === 0) return true;
+    return perm?.can_access ?? false;
+  }, [profile, rolePermissions]);
 
   const visibleMeetings = useMemo(
     () => filterMeetingsForRole(meetings, profile),
@@ -395,10 +408,22 @@ function AppContent() {
           <HomePage
             onNavigate={(newView) => setView(newView as View)}
             isAdmin={profile?.role === 'admin'}
+            moduleAccess={
+              profile?.role === 'admin'
+                ? undefined
+                : Object.fromEntries(
+                    ['dashboard', 'objects', 'closure'].map(mod => {
+                      const perm = rolePermissions.find(
+                        p => p.role === (profile?.role ?? 'guest') && p.module === mod
+                      );
+                      return [mod, perm?.can_access ?? true];
+                    })
+                  ) as Record<string, boolean>
+            }
           />
         )}
-        {view === 'closure' && <ClosureView />}
-        {view === 'dashboard' && (
+        {view === 'closure' && hasModule('closure') && <ClosureView />}
+        {view === 'dashboard' && hasModule('dashboard') && (
           <DashboardWrapper
             meetings={visibleMeetings}
             addresses={addresses}
@@ -433,7 +458,7 @@ function AppContent() {
             onBack={() => setView('dashboard')}
           />
         )}
-        {view === 'objects' && (
+        {view === 'objects' && hasModule('objects') && (
           <ObjectsView
             addresses={addresses}
             tasks={visibleTasks}
@@ -442,11 +467,14 @@ function AppContent() {
             onReload={loadAllData}
             statusFilter={objectsStatusFilter}
             onClearFilter={() => setObjectsStatusFilter(null)}
-
           />
         )}
         {view === 'users' && profile?.role === 'admin' && (
-          <UsersView profiles={profiles} onReload={loadAllData} />
+          <UsersView
+            profiles={profiles}
+            rolePermissions={rolePermissions}
+            onReload={loadAllData}
+          />
         )}
         {showProfile && (
           <UserProfileModal onClose={() => setShowProfile(false)} />

@@ -1,16 +1,15 @@
-import { useState, useEffect } from 'react';
-import { Search, Building2, User, Calendar, Tag, GitBranch, Upload, Trash2, ClipboardList, X as XIcon, Filter, Link as LinkIcon, Check } from 'lucide-react';
+import { useState } from 'react';
+import { Search, Building2, User, Calendar, Tag, GitBranch, Trash2, ClipboardList, X as XIcon, Filter, Link as LinkIcon, Check } from 'lucide-react';
 import type { Address, Task, Meeting } from '../types';
 import { STATUS_CONFIG } from '../types';
 import { getAutoStatus } from '../utils';
 import ObjectDetailModal from './ObjectDetailModal';
-import AddressUploadModal from './AddressUploadModal';
 import { supabase } from '../lib/supabase';
 
 const STATUS_FILTER_LABELS: Record<string, string> = {
-  in_work: 'В работе',
+  in_work:   'В работе',
   completed: 'Исполнено',
-  overdue: 'Просрочено',
+  overdue:   'Просрочено',
 };
 
 interface ObjectsViewProps {
@@ -28,7 +27,6 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
     () => localStorage.getItem('objectsSearch') ?? ''
   );
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
-  const [showUpload, setShowUpload] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Address | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -43,51 +41,6 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
       setTimeout(() => setLinkCopied(false), 2000);
     });
   };
-
-  // Local health-badge filter (independent of the external statusFilter prop)
-  // Initialise from URL query param (direct navigation) or sessionStorage (returning from another view)
-  const [localStatusFilter, setLocalStatusFilter] = useState<string | null>(() => {
-    const valid = ['overdue', 'in_progress', 'new', 'completed'];
-    const params = new URLSearchParams(window.location.search);
-    const s = params.get('status');
-    if (s && valid.includes(s)) return s;
-    const stored = localStorage.getItem('objectsLocalStatusFilter');
-    return stored && valid.includes(stored) ? stored : null;
-  });
-
-  // Track whether the active filter was set from a shared link (?status= URL param)
-  const [filterFromSharedLink, setFilterFromSharedLink] = useState<boolean>(() => {
-    const valid = ['overdue', 'in_progress', 'new', 'completed'];
-    const params = new URLSearchParams(window.location.search);
-    const s = params.get('status');
-    return !!(s && valid.includes(s));
-  });
-
-  // Keep URL and sessionStorage in sync with the active filter
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (localStatusFilter) {
-      params.set('status', localStatusFilter);
-      localStorage.setItem('objectsLocalStatusFilter', localStatusFilter);
-    } else {
-      params.delete('status');
-      localStorage.removeItem('objectsLocalStatusFilter');
-    }
-    const newSearch = params.toString();
-    const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
-    window.history.replaceState(null, '', newUrl);
-  }, [localStatusFilter]);
-
-  // Clear the ?status= param from the URL when leaving the objects view
-  useEffect(() => {
-    return () => {
-      const params = new URLSearchParams(window.location.search);
-      params.delete('status');
-      const newSearch = params.toString();
-      const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
-      window.history.replaceState(null, '', newUrl);
-    };
-  }, []);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -107,17 +60,6 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
   };
 
   const tasksByUin = (uin: string) => tasks.filter(t => t.object_uin === uin);
-
-  // Global health counts across all objects (for the badge row)
-  const statusOrder = ['overdue', 'in_progress', 'new', 'completed'] as const;
-  const globalStatusCounts = (() => {
-    const counts: Record<string, number> = {};
-    for (const task of tasks) {
-      const s = getAutoStatus(task.status, task.deadline);
-      counts[s] = (counts[s] ?? 0) + 1;
-    }
-    return counts;
-  })();
 
   const filtered = addresses.filter((a) => {
     const matchesSearch =
@@ -139,12 +81,6 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
       if (!passesExternal) return false;
     }
 
-    // Local health-badge filter
-    if (localStatusFilter) {
-      const passesLocal = addrTasks.some(t => getAutoStatus(t.status, t.deadline) === localStatusFilter);
-      if (!passesLocal) return false;
-    }
-
     return true;
   });
 
@@ -158,6 +94,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
               ? `Показаны объекты: ${STATUS_FILTER_LABELS[statusFilter]} · ${filtered.length} из ${addresses.length}`
               : `Всего объектов: ${addresses.length}`}
           </p>
+
           {/* External filter indicator (from dashboard KPI navigation) */}
           {statusFilter && (
             <div className="mb-2 flex items-center gap-2">
@@ -180,110 +117,14 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                 title="Скопировать ссылку на текущий фильтр"
               >
                 {linkCopied ? (
-                  <>
-                    <Check size={12} className="text-teal-600" />
-                    Ссылка скопирована!
-                  </>
+                  <><Check size={12} className="text-teal-600" /> Ссылка скопирована!</>
                 ) : (
-                  <>
-                    <LinkIcon size={12} />
-                    Скопировать ссылку
-                  </>
+                  <><LinkIcon size={12} /> Скопировать ссылку</>
                 )}
               </button>
             </div>
           )}
-          {/* Shared-link filter indicator */}
-          {localStatusFilter && filterFromSharedLink && (() => {
-            const cfg = STATUS_CONFIG[localStatusFilter];
-            return (
-              <div className="mb-2 flex items-center gap-2">
-                <div className="flex items-center gap-2 text-xs px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg font-medium">
-                  <LinkIcon size={12} className="text-amber-500 shrink-0" />
-                  <span>
-                    Ссылка открыта с фильтром:{' '}
-                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md font-semibold ${cfg?.bg ?? ''} ${cfg?.color ?? ''}`}>
-                      {cfg?.label ?? localStatusFilter}
-                    </span>
-                  </span>
-                  <button
-                    onClick={() => { setLocalStatusFilter(null); setFilterFromSharedLink(false); }}
-                    className="ml-1 flex items-center gap-1 px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-md transition"
-                  >
-                    <XIcon size={11} />
-                    Сбросить
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
-          {/* Health summary badge row */}
-          {tasks.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {statusOrder.filter(s => globalStatusCounts[s]).map(s => {
-                const cfg = STATUS_CONFIG[s];
-                const count = globalStatusCounts[s];
-                const isActive = localStatusFilter === s;
-                return (
-                  <button
-                    key={s}
-                    onClick={() => { setLocalStatusFilter(isActive ? null : s); setFilterFromSharedLink(false); }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition
-                      ${isActive
-                        ? `${cfg.bg} ${cfg.color} border-current shadow-sm ring-2 ring-offset-1 ring-current/30`
-                        : `${cfg.bg} ${cfg.color} border-transparent opacity-80 hover:opacity-100 hover:border-current`
-                      }`}
-                    title={isActive ? 'Сбросить фильтр' : `Показать только объекты со статусом «${cfg.label}»`}
-                  >
-                    <span className="text-sm font-bold">{count}</span>
-                    <span>{cfg.label.toLowerCase()}</span>
-                  </button>
-                );
-              })}
-              {localStatusFilter && (
-                <>
-                  <button
-                    onClick={() => { setLocalStatusFilter(null); setFilterFromSharedLink(false); }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-500 hover:bg-slate-100 transition"
-                    title="Сбросить фильтр"
-                  >
-                    × сбросить
-                  </button>
-                  <button
-                    onClick={handleCopyLink}
-                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition font-medium border ${
-                      linkCopied
-                        ? 'bg-teal-50 border-teal-200 text-teal-700'
-                        : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
-                    }`}
-                    title="Скопировать ссылку на текущий фильтр"
-                  >
-                    {linkCopied ? (
-                      <>
-                        <Check size={12} className="text-teal-600" />
-                        Ссылка скопирована!
-                      </>
-                    ) : (
-                      <>
-                        <LinkIcon size={12} />
-                        Скопировать ссылку
-                      </>
-                    )}
-                  </button>
-                </>
-              )}
-            </div>
-          )}
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setShowUpload(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl transition text-sm font-medium shadow-sm shrink-0"
-          >
-            <Upload size={16} />
-            Загрузить CSV
-          </button>
-        )}
       </div>
 
       <div className="mb-6 relative">
@@ -368,7 +209,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                 </div>
               </div>
 
-              {/* Task chips / status summary */}
+              {/* Task chips */}
               {(() => {
                 if (tCount === 0) {
                   return (
@@ -381,20 +222,19 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                   );
                 }
                 if (tCount > SHOW_MAX) {
-                  // Compact status summary: count tasks by effective status
                   const statusCounts: Record<string, { count: number; firstTaskId: number }> = {};
                   for (const task of addrTasks) {
                     const s = getAutoStatus(task.status, task.deadline);
                     if (!statusCounts[s]) statusCounts[s] = { count: 0, firstTaskId: task.id };
                     statusCounts[s].count++;
                   }
-                  const statusOrder = ['overdue', 'in_progress', 'new', 'completed'];
-                  const sortedStatuses = Object.keys(statusCounts).sort(
-                    (a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b)
+                  const order = ['overdue', 'in_progress', 'new', 'completed'];
+                  const sorted = Object.keys(statusCounts).sort(
+                    (a, b) => order.indexOf(a) - order.indexOf(b)
                   );
                   return (
                     <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
-                      {sortedStatuses.map(s => {
+                      {sorted.map(s => {
                         const cfg = STATUS_CONFIG[s] || STATUS_CONFIG['new'];
                         const { count, firstTaskId } = statusCounts[s];
                         return (
@@ -462,21 +302,11 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
         />
       )}
 
-      {showUpload && (
-        <AddressUploadModal
-          onClose={() => setShowUpload(false)}
-          onUploaded={() => {
-            setShowUpload(false);
-            onReload?.();
-          }}
-        />
-      )}
-
       {deleteTarget && (() => {
         const linkedTasks = tasks.filter(t => t.object_uin === deleteTarget['Код УИН']);
         const linkedTaskCount = linkedTasks.length;
         const SHOW_MAX = 5;
-        const visibleTasks = linkedTasks.slice(0, SHOW_MAX);
+        const visibleLinked = linkedTasks.slice(0, SHOW_MAX);
         const overflowCount = linkedTaskCount - SHOW_MAX;
         return (
           <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -489,9 +319,7 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
               </div>
               <p className="text-slate-600 text-sm">
                 Вы собираетесь удалить объект{' '}
-                <span className="font-semibold text-slate-900">
-                  {deleteTarget['Наименование объекта']}
-                </span>{' '}
+                <span className="font-semibold text-slate-900">{deleteTarget['Наименование объекта']}</span>{' '}
                 (УИН: <span className="font-mono text-teal-700">{deleteTarget['Код УИН']}</span>).
                 Это действие необратимо.
               </p>
@@ -503,11 +331,11 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                       <span className="font-semibold">Удаление заблокировано:</span> с этим объектом связано{' '}
                       <span className="font-semibold">{linkedTaskCount}</span>{' '}
                       {linkedTaskCount === 1 ? 'поручение' : linkedTaskCount >= 2 && linkedTaskCount <= 4 ? 'поручения' : 'поручений'}.
-                      {' '}Перед удалением объекта необходимо снять или переназначить все связанные поручения.
+                      {' '}Перед удалением необходимо снять все связанные поручения.
                     </p>
                   </div>
                   <ul className="space-y-1 pl-1">
-                    {visibleTasks.map(task => {
+                    {visibleLinked.map(task => {
                       const sc = STATUS_CONFIG[task.status];
                       return (
                         <li key={task.id}>
@@ -515,7 +343,6 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                             type="button"
                             onClick={() => { setDeleteDialogDetailAddress(deleteTarget); setDeleteDialogFocusTaskId(task.id); }}
                             className="w-full flex items-center gap-2 text-xs text-[#861d35] hover:bg-[#FFD6DC] rounded-lg px-1.5 py-1 transition text-left group/task"
-                            title="Открыть карточку объекта"
                           >
                             <span className={`px-1.5 py-0.5 rounded-md font-medium shrink-0 ${sc?.bg ?? 'bg-slate-100'} ${sc?.color ?? 'text-slate-700'}`}>
                               {sc?.label ?? task.status}

@@ -1,6 +1,6 @@
 import { useAuth } from './AuthContext';
 
-// Права доступа для каждой роли
+// Базовые права для каждой роли (используются как fallback если role_permissions не загружены)
 const PERMISSIONS = {
   admin: {
     canCreate: true,
@@ -14,21 +14,21 @@ const PERMISSIONS = {
     canEdit: true,
     canDelete: false,
     canManageUsers: false,
-    canViewAll: false, // Только свой округ
+    canViewAll: false,
   },
-  contractor: {
+  analyst: {
     canCreate: false,
-    canEdit: true, // Может менять статус своих поручений
+    canEdit: false,
     canDelete: false,
     canManageUsers: false,
-    canViewAll: false, // Только свои поручения
+    canViewAll: true,
   },
   guest: {
     canCreate: false,
     canEdit: false,
     canDelete: false,
     canManageUsers: false,
-    canViewAll: true, // Видит всё, но только на чтение
+    canViewAll: true,
   },
 };
 
@@ -40,9 +40,9 @@ export function usePermissions() {
   return {
     role,
     ...permissions,
-    isAdmin: role === 'admin',
-    isManager: role === 'manager',
-    isContractor: role === 'contractor',
-    isGuest: role === 'guest',
+    isAdmin:    role === 'admin',
+    isManager:  role === 'manager',
+    isAnalyst:  role === 'analyst',
+    isGuest:    role === 'guest',
   };
 }

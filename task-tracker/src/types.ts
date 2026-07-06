@@ -32,9 +32,16 @@ export interface Profile {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'manager' | 'contractor' | 'guest';
+  role: 'admin' | 'manager' | 'analyst' | 'guest';
   districts?: string[] | null;
   created_at?: string;
+}
+
+export interface RolePermission {
+  role: string;
+  module: string;
+  can_access: boolean;
+  features: Record<string, boolean>;
 }
 
 export interface Meeting {
@@ -86,24 +93,24 @@ export interface TaskLink {
 }
 
 export const ROLE_LABELS: Record<string, string> = {
-  admin: 'Администратор',
+  admin:   'Администратор',
   manager: 'Руководитель проекта',
-  contractor: 'Подрядчик',
-  guest: 'Гость',
+  analyst: 'Главный аналитик',
+  guest:   'Гость',
 };
 
 export const ROLE_COLORS: Record<string, string> = {
-  admin: 'bg-purple-100 text-purple-700',
+  admin:   'bg-purple-100 text-purple-700',
   manager: 'bg-blue-100 text-blue-700',
-  contractor: 'bg-emerald-100 text-emerald-700',
-  guest: 'bg-slate-100 text-slate-700',
+  analyst: 'bg-emerald-100 text-emerald-700',
+  guest:   'bg-slate-100 text-slate-700',
 };
 
 export const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  new: { label: 'Новое', color: 'text-slate-700', bg: 'bg-slate-100' },
-  in_progress: { label: 'В работе', color: 'text-amber-700', bg: 'bg-amber-100' },
-  completed: { label: 'Исполнено', color: 'text-emerald-700', bg: 'bg-emerald-100' },
-  overdue: { label: 'Просрочено', color: 'text-[#E93A58]', bg: 'bg-[#FFF0F3]' },
+  new:         { label: 'Новое',     color: 'text-slate-700',   bg: 'bg-slate-100'   },
+  in_progress: { label: 'В работе',  color: 'text-amber-700',   bg: 'bg-amber-100'   },
+  completed:   { label: 'Исполнено', color: 'text-emerald-700', bg: 'bg-emerald-100' },
+  overdue:     { label: 'Просрочено',color: 'text-[#E93A58]',   bg: 'bg-[#FFF0F3]'  },
 };
 
 export const ORGANIZATIONS = [
