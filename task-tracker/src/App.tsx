@@ -48,6 +48,13 @@ function AppContent() {
   const [retrying, setRetrying] = useState(false);
   const hadErrorRef = useRef(false);
 
+  // Redirect away from admin-only views if the current user's role changes
+  useEffect(() => {
+    if (view === 'users' && profile?.role !== 'admin') {
+      setView('home');
+    }
+  }, [profile?.role, view]);
+
   // Sync ?kpi= URL param with the external status filter (for shareability)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

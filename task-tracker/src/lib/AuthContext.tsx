@@ -61,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_IN' && session?.user) {
         const lastUserId = localStorage.getItem('lastUserId');
         if (lastUserId && lastUserId !== session.user.id) {
+          // A different user logged in on this device — clear their saved filters
           localStorage.removeItem('objectsSearch');
           localStorage.removeItem('objectsLocalStatusFilter');
         }
