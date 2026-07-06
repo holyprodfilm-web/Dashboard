@@ -1,14 +1,14 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   X, Save, Loader2, Plus, Trash2, Calendar, ClipboardList,
   Upload, Paperclip, ExternalLink, ChevronRight, CheckCircle2,
-  AlertTriangle, Lock, Search, Clock,
+  AlertTriangle, Lock, Search, Clock, Info,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type {
-  NtsEntry, NtsSession, NtsDocRound, Profile, NtsStatus, NtsProtocolStatus,
+  NtsEntry, NtsDocRound, Profile, NtsStatus, NtsProtocolStatus,
 } from '../types';
-import { NTS_STATUS_CONFIG, NTS_PROTOCOL_STATUS_CONFIG } from '../types';
+import { NTS_PROTOCOL_STATUS_CONFIG } from '../types';
 import NtsChecklistModal from './NtsChecklistModal';
 
 interface Props {
@@ -20,7 +20,7 @@ interface Props {
   onSaved: () => void;
 }
 
-type TabKey = 'main' | 'checklist' | 'sessions' | 'protocol';
+type TabKey = 'main' | 'checklist' | 'protocol';
 
 const EMPTY_FORM = {
   object_uin: '',
@@ -32,7 +32,6 @@ const EMPTY_FORM = {
   mogae_cost: '',
   rp_main_id: '',
   rp2_id: '',
-  status: 'rp_review' as NtsStatus,
   protocol_number: '',
   protocol_date: '',
   protocol_status: '' as NtsProtocolStatus | '',
@@ -41,24 +40,40 @@ const EMPTY_FORM = {
 
 type AddrItem = { uin: string; name: string; district: string };
 
+/** Compute NTS status automatically from round state */
+function computeStatus(
+  rounds: NtsDocRound[],
+  contractCost: number,
+  preNtsCost: number,
+): NtsStatus {
+  if (rounds.length === 0) return 'rp_review';
+  const sorted = [...rounds].sort(
+    (a, b) => new Date(a.received_date).getTime() - new Date(b.received_date).getTime(),
+  );
+  const latest = sorted[sorted.length - 1];
+
+  if (latest.checklist_approved) {
+    const excess = contractCost > 0 ? (preNtsCost - contractCost) / contractCost : 0;
+    return excess <= 0.3 ? 'below_30' : 'positive_mogae';
+  }
+  if (latest.remarks_issued_at) return 'remarks_fix';
+  if (latest.presentation_date) return 'vks_scheduled';
+  return 'rp_review';
+}
+
 export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin, onClose, onSaved }: Props) {
-  // savedEntry tracks the persisted record (may start null for new entries)
   const [savedEntry, setSavedEntry] = useState<NtsEntry | null>(entry);
   const isEdit = !!savedEntry;
 
   const [tab, setTab] = useState<TabKey>('main');
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [vksDates, setVksDates] = useState<string[]>([]);
-  const [sessions, setSessions] = useState<NtsSession[]>([]);
   const [rounds, setRounds] = useState<NtsDocRound[]>([]);
   const [saving, setSaving] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
   const [checklistRoundId, setChecklistRoundId] = useState<number | null>(null);
-
-  // Session form
-  const [newSessionDate, setNewSessionDate] = useState('');
-  const [newSessionRemarks, setNewSessionRemarks] = useState('');
-  const [addingSession, setAddingSession] = useState(false);
+  // Track which round IDs had remarks carried over from the previous round
+  const [roundsWithCarryover, setRoundsWithCarryover] = useState<Set<number>>(new Set());
 
   // Doc round form
   const [newRoundDate, setNewRoundDate] = useState('');
@@ -77,14 +92,22 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
     ['manager', 'admin'].includes(p.role) || (p.responsible_modules?.includes('nts') ?? false)
   );
 
-  // Checklist gating: sessions tab unlocked only when ≥1 round is approved
-  const hasApprovedRound = rounds.some(r => r.checklist_approved);
+  // Derived: sorted rounds oldest → newest
+  const sortedRounds = useMemo(
+    () => [...rounds].sort((a, b) => new Date(a.received_date).getTime() - new Date(b.received_date).getTime()),
+    [rounds],
+  );
+
+  // Protocol tab unlocks only when the last round's checklist is approved
+  const lastRoundApproved = sortedRounds.length > 0 && sortedRounds[sortedRounds.length - 1].checklist_approved;
 
   const tabConfig: Array<{ id: TabKey; label: () => string; locked: boolean; lockReason?: string }> = [
-    { id: 'main',      label: () => 'Основное',                             locked: false },
-    { id: 'checklist', label: () => `Документация${rounds.length ? ` (${rounds.length})` : ''}`, locked: !isEdit,           lockReason: 'Сначала сохраните основные данные' },
-    { id: 'sessions',  label: () => `Заседания${sessions.length ? ` (${sessions.length})` : ''}`, locked: !isEdit || !hasApprovedRound, lockReason: 'Доступно после прохождения чек-листа' },
-    { id: 'protocol',  label: () => 'Протокол',                             locked: !isEdit,           lockReason: 'Сначала сохраните основные данные' },
+    { id: 'main',      label: () => 'Основное',                                     locked: false },
+    { id: 'checklist', label: () => `Документация${rounds.length ? ` (${rounds.length})` : ''}`,
+                       locked: !isEdit, lockReason: 'Сначала сохраните основные данные' },
+    { id: 'protocol',  label: () => 'Протокол',
+                       locked: !isEdit || !lastRoundApproved,
+                       lockReason: 'Доступно после полного одобрения чек-листа последнего раунда' },
   ];
 
   // Load addresses
@@ -118,7 +141,6 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
         mogae_cost:      entry.mogae_cost ? String(entry.mogae_cost) : '',
         rp_main_id:      entry.rp_main_id ?? '',
         rp2_id:          entry.rp2_id ?? '',
-        status:          entry.status,
         protocol_number: entry.protocol_number ?? '',
         protocol_date:   entry.protocol_date ?? '',
         protocol_status: entry.protocol_status ?? '',
@@ -126,7 +148,6 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
       });
       setObjQuery(entry.object_name);
       setVksDates(entry.vks_dates ?? []);
-      void loadSessions(entry.id);
       void loadRounds(entry.id);
     }
   }, [entry]);
@@ -142,15 +163,22 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const loadSessions = async (entryId: number) => {
-    const { data } = await supabase.from('nts_sessions').select('*').eq('nts_entry_id', entryId).order('session_date');
-    setSessions((data as NtsSession[]) ?? []);
-  };
-
   const loadRounds = async (entryId: number) => {
-    const { data } = await supabase.from('nts_doc_rounds').select('*').eq('nts_entry_id', entryId).order('received_date');
+    const { data } = await supabase
+      .from('nts_doc_rounds')
+      .select('*')
+      .eq('nts_entry_id', entryId)
+      .order('received_date');
     setRounds((data as NtsDocRound[]) ?? []);
   };
+
+  // Save computed status to DB
+  const saveAutoStatus = useCallback(async (updatedRounds: NtsDocRound[], entryId: number) => {
+    const contract = parseFloat(form.contract_cost) || 0;
+    const preNts   = parseFloat(form.pre_nts_cost) || 0;
+    const status = computeStatus(updatedRounds, contract, preNts);
+    await supabase.from('nts_entries').update({ status }).eq('id', entryId);
+  }, [form.contract_cost, form.pre_nts_cost]);
 
   // Object combobox: filtered list
   const filteredAddrs = useMemo(() => {
@@ -161,15 +189,24 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
     ).slice(0, 60);
   }, [addresses, objQuery]);
 
-  const handleObjectSelect = (addr: AddrItem) => {
+  const handleObjectSelect = async (addr: AddrItem) => {
     const autoRp = managerProfiles.find(p =>
       Array.isArray(p.districts) && p.districts.includes(addr.district)
     );
+
+    // Auto-fetch contractor from closure_objects
+    const { data: closureData } = await supabase
+      .from('closure_objects')
+      .select('contractor')
+      .eq('uin', addr.uin)
+      .maybeSingle();
+
     setForm(f => ({
       ...f,
       object_uin:  addr.uin,
       object_name: addr.name,
       rp_main_id:  autoRp ? autoRp.id : f.rp_main_id,
+      contractor:  closureData?.contractor ? closureData.contractor : f.contractor,
     }));
     setObjQuery(addr.name);
     setObjDropdownOpen(false);
@@ -182,7 +219,7 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
     return { diff: preNts - contract, pct: ((preNts - contract) / contract) * 100 };
   };
 
-  const buildPayload = () => ({
+  const buildPayload = (overrideStatus?: NtsStatus) => ({
     object_uin:      form.object_uin,
     object_name:     form.object_name,
     contractor:      form.contractor,
@@ -192,7 +229,7 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
     mogae_cost:      form.mogae_cost ? parseFloat(form.mogae_cost) : null,
     rp_main_id:      form.rp_main_id || null,
     rp2_id:          form.rp2_id || null,
-    status:          form.status,
+    status:          overrideStatus ?? computeStatus(rounds, parseFloat(form.contract_cost) || 0, parseFloat(form.pre_nts_cost) || 0),
     protocol_number: form.protocol_number || null,
     protocol_date:   form.protocol_date || null,
     protocol_status: form.protocol_status || null,
@@ -208,7 +245,6 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
     return true;
   };
 
-  // Save main and optionally switch tab
   const handleSaveMain = async (goToChecklist = false) => {
     if (!validateMain()) return;
     setSaving(true);
@@ -218,7 +254,7 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
       if (goToChecklist) setTab('checklist');
     } else {
       const { data, error } = await supabase.from('nts_entries')
-        .insert([{ ...buildPayload(), created_by: currentUserId }])
+        .insert([{ ...buildPayload('rp_review'), created_by: currentUserId }])
         .select().single();
       if (error || !data) { alert('Ошибка создания: ' + (error?.message ?? '')); setSaving(false); return; }
       setSavedEntry(data as NtsEntry);
@@ -238,45 +274,63 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
   };
 
   const handleDelete = async () => {
-    if (!savedEntry || !window.confirm('Удалить эту запись НТС? Все заседания и чек-листы будут удалены.')) return;
+    if (!savedEntry || !window.confirm('Удалить эту запись НТС? Все раунды и чек-листы будут удалены.')) return;
     await supabase.from('nts_entries').delete().eq('id', savedEntry.id);
     onSaved();
-  };
-
-  const addSession = async () => {
-    if (!savedEntry || !newSessionDate) return;
-    setAddingSession(true);
-    await supabase.from('nts_sessions').insert([{
-      nts_entry_id: savedEntry.id,
-      session_date: newSessionDate,
-      remarks: newSessionRemarks || null,
-      created_by: currentUserId,
-    }]);
-    setNewSessionDate('');
-    setNewSessionRemarks('');
-    await loadSessions(savedEntry.id);
-    setAddingSession(false);
-  };
-
-  const deleteSession = async (id: number) => {
-    if (!window.confirm('Удалить заседание?')) return;
-    await supabase.from('nts_sessions').delete().eq('id', id);
-    if (savedEntry) await loadSessions(savedEntry.id);
   };
 
   const addRound = async () => {
     if (!savedEntry || !newRoundDate) return;
     setAddingRound(true);
-    const { data } = await supabase.from('nts_doc_rounds').insert([{
-      nts_entry_id: savedEntry.id,
-      received_date: newRoundDate,
-      created_by: currentUserId,
-    }]).select().single();
+
+    const { data: newRound } = await supabase
+      .from('nts_doc_rounds')
+      .insert([{ nts_entry_id: savedEntry.id, received_date: newRoundDate, created_by: currentUserId }])
+      .select()
+      .single();
+
     setNewRoundDate('');
-    await loadRounds(savedEntry.id);
+
+    // Copy fail/clarify responses from previous round to the new one
+    if (newRound && sortedRounds.length > 0) {
+      const prevRound = sortedRounds[sortedRounds.length - 1];
+      const { data: prevResponses } = await supabase
+        .from('nts_checklist_responses')
+        .select('item_id, respondent_role, status, comment')
+        .eq('round_id', prevRound.id)
+        .in('status', ['fail', 'clarify']);
+
+      if (prevResponses && prevResponses.length > 0) {
+        const roundNum = sortedRounds.length;
+        await supabase.from('nts_checklist_responses').insert(
+          prevResponses.map(r => ({
+            round_id:        newRound.id,
+            item_id:         r.item_id,
+            respondent_role: r.respondent_role,
+            status:          r.status,
+            comment:         r.comment
+              ? `[Раунд ${roundNum}] ${r.comment}`
+              : `[Перенесено из Раунда ${roundNum}]`,
+            updated_at:      new Date().toISOString(),
+            updated_by:      currentUserId ?? null,
+          }))
+        );
+        // Mark this new round as having carried-over remarks
+        setRoundsWithCarryover(prev => new Set(prev).add(newRound.id));
+      }
+    }
+
+    const { data: freshRounds } = await supabase
+      .from('nts_doc_rounds')
+      .select('*')
+      .eq('nts_entry_id', savedEntry.id);
+    const updatedRounds = (freshRounds as NtsDocRound[]) ?? [];
+    setRounds(updatedRounds);
+    await saveAutoStatus(updatedRounds, savedEntry.id);
     setAddingRound(false);
-    if (data) {
-      setChecklistRoundId(data.id);
+
+    if (newRound) {
+      setChecklistRoundId(newRound.id);
       setChecklistOpen(true);
     }
   };
@@ -284,13 +338,21 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
   const deleteRound = async (id: number) => {
     if (!window.confirm('Удалить раунд документации (с чек-листом)?')) return;
     await supabase.from('nts_doc_rounds').delete().eq('id', id);
-    if (savedEntry) await loadRounds(savedEntry.id);
+    if (savedEntry) {
+      await loadRounds(savedEntry.id);
+      const updatedRounds = rounds.filter(r => r.id !== id);
+      await saveAutoStatus(updatedRounds, savedEntry.id);
+    }
   };
 
-  // Update a single field on a round
   const updateRoundField = async (roundId: number, field: string, value: string | null) => {
     await supabase.from('nts_doc_rounds').update({ [field]: value || null }).eq('id', roundId);
-    if (savedEntry) await loadRounds(savedEntry.id);
+    if (savedEntry) {
+      await loadRounds(savedEntry.id);
+      // Re-read fresh rounds for status computation
+      const { data } = await supabase.from('nts_doc_rounds').select('*').eq('nts_entry_id', savedEntry.id);
+      if (data) await saveAutoStatus(data as NtsDocRound[], savedEntry.id);
+    }
   };
 
   const uploadProtocolFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -308,7 +370,6 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
 
   const exValue = excess();
 
-  // Days between two dates (positive = overdue)
   const daysDiff = (from: string, to: string | null) => {
     if (!to) return null;
     return Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000);
@@ -360,7 +421,7 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                   {idx > 0 && <ChevronRight size={12} className="text-slate-300" />}
                   {t.locked && <Lock size={11} className="opacity-60" />}
                   {t.label()}
-                  {t.id === 'checklist' && hasApprovedRound && (
+                  {t.id === 'checklist' && lastRoundApproved && (
                     <span className="w-2 h-2 rounded-full bg-emerald-500 ml-0.5" />
                   )}
                 </button>
@@ -400,7 +461,7 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                       {filteredAddrs.map(a => (
                         <button
                           key={a.uin}
-                          onMouseDown={() => handleObjectSelect(a)}
+                          onMouseDown={() => void handleObjectSelect(a)}
                           className="w-full text-left px-4 py-2.5 text-sm hover:bg-indigo-50 border-b border-slate-50 last:border-0"
                         >
                           <span className="font-medium text-slate-800">{a.name}</span>
@@ -420,6 +481,11 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                     placeholder="ООО «Название»"
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                   />
+                  {form.object_uin && form.contractor && (
+                    <p className="text-xs text-indigo-500 mt-1 flex items-center gap-1">
+                      <Info size={11}/> Подставлен автоматически из базы объектов
+                    </p>
+                  )}
                 </Field>
 
                 {/* Costs */}
@@ -489,17 +555,6 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                   </Field>
                 </div>
 
-                {/* Status */}
-                <Field label="Статус НТС">
-                  <select value={form.status}
-                    onChange={e => setForm(f => ({ ...f, status: e.target.value as NtsStatus }))}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none">
-                    {Object.entries(NTS_STATUS_CONFIG).map(([k, v]) => (
-                      <option key={k} value={k}>{v.label}</option>
-                    ))}
-                  </select>
-                </Field>
-
                 {/* Notes */}
                 <Field label="Примечания">
                   <textarea value={form.notes}
@@ -514,7 +569,8 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
             {tab === 'checklist' && (
               <div className="space-y-4">
                 <p className="text-sm text-slate-500">
-                  У РП есть <strong>3 рабочих дня</strong> с момента получения документации: согласовать чек-лист или выдать перечень замечаний.
+                  У РП есть <strong>3 рабочих дня</strong> с момента получения документации: провести заседание и внести замечания в чек-лист.
+                  При получении следующего раунда неустранённые замечания переносятся автоматически.
                 </p>
 
                 {rounds.length === 0 && (
@@ -525,11 +581,8 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                 )}
 
                 <div className="space-y-4">
-                  {rounds.map((r, idx) => {
-                    const deadline3 = new Date(r.received_date);
-                    deadline3.setDate(deadline3.getDate() + 3);
+                  {sortedRounds.map((r, idx) => {
                     const contractorDays = daysDiff(r.received_date, r.remarks_resolved_contractor_at);
-                    const districtDays   = daysDiff(r.received_date, r.remarks_resolved_district_at);
 
                     return (
                       <div key={r.id} className={`border rounded-xl overflow-hidden ${r.checklist_approved ? 'border-emerald-200' : 'border-slate-200'}`}>
@@ -553,7 +606,7 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                             >
                               <ClipboardList size={13} /> Чек-лист
                             </button>
-                            <button onClick={() => deleteRound(r.id)} className="text-slate-400 hover:text-red-500 transition">
+                            <button onClick={() => void deleteRound(r.id)} className="text-slate-400 hover:text-red-500 transition">
                               <Trash2 size={14} />
                             </button>
                           </div>
@@ -561,30 +614,36 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
 
                         {/* Round fields */}
                         <div className="px-4 py-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <RoundDateField
-                            label="Дата предоставления презентации"
-                            value={r.presentation_date ?? ''}
-                            onChange={v => updateRoundField(r.id, 'presentation_date', v)}
-                          />
+                          {/* Meeting date — prominent */}
+                          <div className="md:col-span-2">
+                            <RoundDateField
+                              label="📅 Дата заседания НТС (ВКС)"
+                              value={r.presentation_date ?? ''}
+                              onChange={v => void updateRoundField(r.id, 'presentation_date', v)}
+                            />
+                          </div>
                           <RoundDateField
                             label="Дата выдачи замечаний РП"
                             value={r.remarks_issued_at ?? ''}
-                            onChange={v => updateRoundField(r.id, 'remarks_issued_at', v)}
-                            hint={`Дедлайн: ${deadline3.toLocaleDateString('ru-RU')}`}
+                            onChange={v => void updateRoundField(r.id, 'remarks_issued_at', v)}
                           />
                           <RoundDateField
                             label="Замечания устранены (подрядчик)"
                             value={r.remarks_resolved_contractor_at ?? ''}
-                            onChange={v => updateRoundField(r.id, 'remarks_resolved_contractor_at', v)}
-                            hint={contractorDays !== null ? `${contractorDays} дн. с поступления` : undefined}
-                          />
-                          <RoundDateField
-                            label="Замечания устранены (округ)"
-                            value={r.remarks_resolved_district_at ?? ''}
-                            onChange={v => updateRoundField(r.id, 'remarks_resolved_district_at', v)}
-                            hint={districtDays !== null ? `${districtDays} дн. с поступления` : undefined}
+                            onChange={v => void updateRoundField(r.id, 'remarks_resolved_contractor_at', v)}
+                            hint={contractorDays !== null ? `${contractorDays} дн. с выдачи замечаний` : undefined}
                           />
                         </div>
+
+                        {/* Show carried-over remark indicator only when remarks were actually copied */}
+                        {roundsWithCarryover.has(r.id) && !r.checklist_approved && (
+                          <div className="px-4 pb-3">
+                            <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                              <AlertTriangle size={12} className="shrink-0" />
+                              Неустранённые замечания из Раунда {idx} перенесены в этот чек-лист автоматически
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -600,7 +659,7 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                         onChange={e => setNewRoundDate(e.target.value)}
                         className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400" />
                     </div>
-                    <button onClick={addRound} disabled={!newRoundDate || addingRound}
+                    <button onClick={() => void addRound()} disabled={!newRoundDate || addingRound}
                       className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                       {addingRound ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                       Принять документы
@@ -610,68 +669,14 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
               </div>
             )}
 
-            {/* ── SESSIONS TAB ─────────────────────────────────────────── */}
-            {tab === 'sessions' && (
-              <div className="space-y-4">
-                {!hasApprovedRound && (
-                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-                    <Lock size={16} className="mt-0.5 shrink-0" />
-                    <span>Заседание можно назначить только после полного прохождения чек-листа по хотя бы одному раунду документации.</span>
-                  </div>
-                )}
-                <p className="text-sm text-slate-500">История заседаний ВКС и замечаний по объекту.</p>
-                {sessions.length === 0 && (
-                  <div className="text-center py-8 text-slate-400">
-                    <Calendar size={28} className="mx-auto mb-2 opacity-30" />
-                    <p>Заседаний пока нет</p>
-                  </div>
-                )}
-                <div className="space-y-3">
-                  {sessions.map(s => (
-                    <div key={s.id} className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-slate-800 flex items-center gap-2">
-                          <Calendar size={14} className="text-violet-500" />
-                          {new Date(s.session_date).toLocaleDateString('ru-RU')}
-                        </span>
-                        <button onClick={() => deleteSession(s.id)} className="text-slate-400 hover:text-red-500 transition">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      {s.remarks && <p className="text-sm text-slate-600 mt-1">{s.remarks}</p>}
-                    </div>
-                  ))}
-                </div>
-
-                {hasApprovedRound && (
-                  <div className="border border-dashed border-slate-200 rounded-xl p-4 space-y-3">
-                    <p className="text-sm font-medium text-slate-700">Добавить заседание</p>
-                    <div>
-                      <label className="text-xs text-slate-500 mb-1 block">Дата ВКС</label>
-                      <input type="date" value={newSessionDate}
-                        onChange={e => setNewSessionDate(e.target.value)}
-                        className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-500 mb-1 block">Замечания</label>
-                      <textarea value={newSessionRemarks}
-                        onChange={e => setNewSessionRemarks(e.target.value)}
-                        rows={2} placeholder="Текст замечаний…"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 resize-none" />
-                    </div>
-                    <button onClick={addSession} disabled={!newSessionDate || addingSession}
-                      className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                      {addingSession ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                      Добавить заседание
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* ── PROTOCOL TAB ─────────────────────────────────────────── */}
             {tab === 'protocol' && (
               <div className="space-y-5">
+                <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800">
+                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-600" />
+                  <span>Чек-лист последнего раунда полностью одобрен — можно оформлять протокол.</span>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label="Номер протокола">
                     <input type="text" value={form.protocol_number}
@@ -735,7 +740,7 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
                     ))}
                     <button onClick={() => setVksDates(a => [...a, ''])}
                       className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium">
-                      <Plus size={13} /> Добавить дату ВКС
+                      <Plus size={13} /> <Calendar size={12}/> Добавить дату ВКС
                     </button>
                   </div>
                 </div>
@@ -760,7 +765,7 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
               </button>
 
               {tab === 'main' && !isEdit && (
-                <button onClick={() => handleSaveMain(true)} disabled={saving}
+                <button onClick={() => void handleSaveMain(true)} disabled={saving}
                   className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition shadow-sm shadow-indigo-600/20">
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <ChevronRight size={14} />}
                   Далее
@@ -798,7 +803,11 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
           onClose={() => setChecklistOpen(false)}
           onApprovalChange={async (approved) => {
             await supabase.from('nts_doc_rounds').update({ checklist_approved: approved }).eq('id', checklistRoundId);
-            if (savedEntry) await loadRounds(savedEntry.id);
+            if (savedEntry) {
+              await loadRounds(savedEntry.id);
+              const { data } = await supabase.from('nts_doc_rounds').select('*').eq('nts_entry_id', savedEntry.id);
+              if (data) await saveAutoStatus(data as NtsDocRound[], savedEntry.id);
+            }
           }}
         />
       )}

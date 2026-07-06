@@ -116,8 +116,7 @@ function buildChecklistSheet(
   responses: NtsChecklistResponse[],
   profileMap: Map<string, Profile>,
 ): XLSX.WorkSheet {
-  const rpName = (id: string | null) =>
-    id ? (profileMap.get(id)?.full_name ?? '—') : '—';
+  void profileMap; // profileMap reserved for future RP name columns
 
   const statusLabel = (s: string | null) =>
     s ? (NTS_CHECKLIST_STATUS[s as keyof typeof NTS_CHECKLIST_STATUS]?.label ?? s) : '—';

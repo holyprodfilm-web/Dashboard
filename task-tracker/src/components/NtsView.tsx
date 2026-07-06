@@ -2,13 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   FlaskConical, Plus, RefreshCw, Loader2, ChevronRight, FileText, CheckCircle2,
   Clock, AlertTriangle, TrendingUp, Users, Banknote, BarChart3, Search, Filter,
-  Download,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { NtsEntry, NtsSession, NtsDocRound, Profile } from '../types';
+import type { NtsEntry, NtsDocRound, Profile } from '../types';
 import { NTS_STATUS_CONFIG, NTS_PROTOCOL_STATUS_CONFIG } from '../types';
 import NtsEntryModal from './NtsEntryModal';
-import { exportNtsToExcel } from '../lib/ntsExport';
 
 interface NtsViewProps {
   profiles: Profile[];
@@ -19,36 +17,41 @@ interface NtsViewProps {
 
 type TabType = 'dashboard' | 'list';
 
+type AddrItem = { uin: string; district: string };
+
 export default function NtsView({ profiles, currentUserId, currentUserRole, isModuleAdmin }: NtsViewProps) {
   const [entries, setEntries] = useState<NtsEntry[]>([]);
-  const [sessions, setSessions] = useState<NtsSession[]>([]);
   const [rounds, setRounds] = useState<NtsDocRound[]>([]);
+  const [addresses, setAddresses] = useState<AddrItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabType>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedEntry, setSelectedEntry] = useState<NtsEntry | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [exporting, setExporting] = useState(false);
 
   const isAdmin = currentUserRole === 'admin' || (isModuleAdmin ?? false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [entRes, sesRes, rndRes] = await Promise.all([
+    const [entRes, rndRes, addrRes] = await Promise.all([
       supabase.from('nts_entries').select('*').order('created_at', { ascending: false }),
-      supabase.from('nts_sessions').select('*').order('session_date', { ascending: false }),
       supabase.from('nts_doc_rounds').select('*').order('received_date', { ascending: false }),
+      supabase.from('addresses').select('"Код УИН","Городской округ"'),
     ]);
     if (entRes.data) setEntries(entRes.data as NtsEntry[]);
-    if (sesRes.data) setSessions(sesRes.data as NtsSession[]);
     if (rndRes.data) setRounds(rndRes.data as NtsDocRound[]);
+    if (addrRes.data) setAddresses(addrRes.data.map((a: Record<string, string>) => ({
+      uin: a['Код УИН'],
+      district: a['Городской округ'] ?? '—',
+    })));
     setLoading(false);
   }, []);
 
   useEffect(() => { void loadData(); }, [loadData]);
 
   const profileMap = new Map(profiles.map(p => [p.id, p]));
+  const districtByUin = new Map(addresses.map(a => [a.uin, a.district]));
 
   const rpName = (id: string | null) => id ? (profileMap.get(id)?.full_name ?? '—') : '—';
 
@@ -69,7 +72,6 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   const totalPreNts   = entries.reduce((s, e) => s + (e.pre_nts_cost ?? 0), 0);
   const totalPostNts  = entries.filter(e => e.post_nts_cost).reduce((s, e) => s + (e.post_nts_cost ?? 0), 0);
 
-  // Load per RP (only active entries)
   const rpLoad: Record<string, number> = {};
   inWork.forEach(e => {
     if (e.rp_main_id) rpLoad[e.rp_main_id] = (rpLoad[e.rp_main_id] ?? 0) + 1;
@@ -84,38 +86,50 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   const daysBetween = (a: string, b: string) =>
     Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 
-  // Rounds where RP issued remarks — compute deadline compliance (≤3 days)
-  const roundsWithIssuedRemarks = rounds.filter(r => r.remarks_issued_at);
-  const inTimeCount = roundsWithIssuedRemarks.filter(r =>
-    daysBetween(r.received_date, r.remarks_issued_at!) <= 3
-  ).length;
-  const reviewCompliance = roundsWithIssuedRemarks.length > 0
-    ? Math.round((inTimeCount / roundsWithIssuedRemarks.length) * 100)
-    : null;
-
-  // Average days to resolve by contractor
-  const contractorTimes = rounds
-    .filter(r => r.remarks_resolved_contractor_at)
-    .map(r => daysBetween(r.received_date, r.remarks_resolved_contractor_at!));
-  const avgContractorDays = contractorTimes.length > 0
-    ? Math.round(contractorTimes.reduce((a, b) => a + b, 0) / contractorTimes.length)
-    : null;
-
-  // Average days to resolve by district
-  const districtTimes = rounds
-    .filter(r => r.remarks_resolved_district_at)
-    .map(r => daysBetween(r.received_date, r.remarks_resolved_district_at!));
-  const avgDistrictDays = districtTimes.length > 0
-    ? Math.round(districtTimes.reduce((a, b) => a + b, 0) / districtTimes.length)
-    : null;
-
-  // Rounds currently overdue (received > 3 days ago, no remarks issued yet, no approval)
-  const overdueReviews = rounds.filter(r => {
+  // Rounds currently overdue (received > 3 days ago, no remarks issued yet, not approved)
+  const overdueRounds = rounds.filter(r => {
     if (r.remarks_issued_at || r.checklist_approved) return false;
     const deadline = new Date(r.received_date);
     deadline.setDate(deadline.getDate() + 3);
     return new Date() > deadline;
   });
+
+  // Overdue by RP: who is overdue and by how many days
+  interface OverdueRow { rpId: string | null; rpLabel: string; objectName: string; daysOverdue: number }
+  const overdueByRp: OverdueRow[] = overdueRounds
+    .map(r => {
+      const entry = entries.find(e => e.id === r.nts_entry_id);
+      if (!entry) return null;
+      const deadline = new Date(r.received_date);
+      deadline.setDate(deadline.getDate() + 3);
+      const daysOverdue = Math.round((new Date().getTime() - deadline.getTime()) / 86400000);
+      return {
+        rpId: entry.rp_main_id,
+        rpLabel: rpName(entry.rp_main_id),
+        objectName: entry.object_name,
+        daysOverdue,
+      };
+    })
+    .filter((x): x is OverdueRow => x !== null)
+    .sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+  // Remark resolution: rounds where contractor resolved remarks
+  interface ResolutionRow { district: string; contractor: string; objectName: string; days: number }
+  const resolutionRows: ResolutionRow[] = rounds
+    .filter(r => r.remarks_issued_at && r.remarks_resolved_contractor_at)
+    .map(r => {
+      const entry = entries.find(e => e.id === r.nts_entry_id);
+      if (!entry) return null;
+      const days = daysBetween(r.remarks_issued_at!, r.remarks_resolved_contractor_at!);
+      return {
+        district: districtByUin.get(entry.object_uin) ?? '—',
+        contractor: entry.contractor,
+        objectName: entry.object_name,
+        days,
+      };
+    })
+    .filter((x): x is ResolutionRow => x !== null)
+    .sort((a, b) => b.days - a.days);
 
   // ── List filters ───────────────────────────────────────────────────────────
   const filtered = entries.filter(e => {
@@ -132,7 +146,12 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   };
 
   const hasRound = (entryId: number) => rounds.some(r => r.nts_entry_id === entryId);
-  const sessionCount = (entryId: number) => sessions.filter(s => s.nts_entry_id === entryId).length;
+  const lastRoundApproved = (entryId: number) => {
+    const entryRounds = rounds
+      .filter(r => r.nts_entry_id === entryId)
+      .sort((a, b) => new Date(a.received_date).getTime() - new Date(b.received_date).getTime());
+    return entryRounds.length > 0 && entryRounds[entryRounds.length - 1].checklist_approved;
+  };
 
   if (loading) {
     return (
@@ -156,22 +175,6 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={loadData} title="Обновить" className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
             <RefreshCw size={18} />
-          </button>
-          <button
-            onClick={async () => {
-              setExporting(true);
-              try {
-                await exportNtsToExcel(entries, rounds, profiles);
-              } finally {
-                setExporting(false);
-              }
-            }}
-            disabled={exporting || entries.length === 0}
-            title="Экспорт в Excel"
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-medium text-sm shadow-sm shadow-emerald-600/20"
-          >
-            {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-            Экспорт в Excel
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
@@ -218,7 +221,6 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
 
           {/* Status breakdown + RP Load */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Status breakdown */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
               <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <BarChart3 size={16} className="text-indigo-500" /> Распределение по статусам
@@ -241,7 +243,6 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
               </div>
             </div>
 
-            {/* RP load */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
               <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <Users size={16} className="text-indigo-500" /> Нагрузка по РП (активные объекты)
@@ -269,37 +270,79 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
             </div>
           </div>
 
-          {/* Timeline analytics */}
+          {/* ── Просрочено рассмотрение по РП ─────────────────────────── */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <Clock size={16} className="text-indigo-500" /> Аналитика сроков рассмотрения и устранения замечаний
+              <Clock size={16} className="text-red-500" /> Просрочено рассмотрение документации — по РП
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <TimelineBlock
-                label="Рассмотрено в срок (≤3 дн.)"
-                value={reviewCompliance !== null ? `${reviewCompliance}%` : '—'}
-                note={roundsWithIssuedRemarks.length > 0 ? `${inTimeCount} из ${roundsWithIssuedRemarks.length} раундов` : 'Нет данных'}
-                color={reviewCompliance !== null && reviewCompliance >= 80 ? 'text-emerald-600' : reviewCompliance !== null ? 'text-red-600' : 'text-slate-400'}
-              />
-              <TimelineBlock
-                label="Просрочено рассмотрений (сейчас)"
-                value={String(overdueReviews.length)}
-                note="без выданных замечаний"
-                color={overdueReviews.length > 0 ? 'text-red-600' : 'text-emerald-600'}
-              />
-              <TimelineBlock
-                label="Среднее устранение — подрядчик"
-                value={avgContractorDays !== null ? `${avgContractorDays} дн.` : '—'}
-                note={contractorTimes.length > 0 ? `по ${contractorTimes.length} раундам` : 'Нет данных'}
-                color="text-amber-600"
-              />
-              <TimelineBlock
-                label="Среднее устранение — округ"
-                value={avgDistrictDays !== null ? `${avgDistrictDays} дн.` : '—'}
-                note={districtTimes.length > 0 ? `по ${districtTimes.length} раундам` : 'Нет данных'}
-                color="text-blue-600"
-              />
-            </div>
+            {overdueByRp.length === 0 ? (
+              <div className="flex items-center gap-3 py-4 text-sm text-emerald-700 bg-emerald-50 rounded-xl px-4">
+                <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                Просроченных рассмотрений нет — все в срок
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-xs uppercase">
+                      <th className="px-4 py-2 text-left font-medium rounded-l-lg">РП</th>
+                      <th className="px-4 py-2 text-left font-medium">Объект</th>
+                      <th className="px-4 py-2 text-right font-medium rounded-r-lg">Просрочено, дн.</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {overdueByRp.map((row, i) => (
+                      <tr key={i} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 text-slate-700 font-medium">{row.rpLabel}</td>
+                        <td className="px-4 py-3 text-slate-600 max-w-xs truncate">{row.objectName}</td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="inline-flex items-center gap-1 font-bold text-red-600">
+                            <AlertTriangle size={13} /> {row.daysOverdue}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* ── Аналитика устранения замечаний ─────────────────────────── */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <AlertTriangle size={16} className="text-amber-500" /> Устранение замечаний по объектам
+            </h3>
+            {resolutionRows.length === 0 ? (
+              <p className="text-sm text-slate-400 py-4 text-center">Нет данных об устранении замечаний</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-xs uppercase">
+                      <th className="px-4 py-2 text-left font-medium rounded-l-lg">Округ</th>
+                      <th className="px-4 py-2 text-left font-medium">Подрядчик</th>
+                      <th className="px-4 py-2 text-left font-medium">Наименование объекта</th>
+                      <th className="px-4 py-2 text-right font-medium rounded-r-lg">Дни устранения</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {resolutionRows.map((row, i) => (
+                      <tr key={i} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{row.district}</td>
+                        <td className="px-4 py-3 text-slate-600 max-w-[160px] truncate">{row.contractor}</td>
+                        <td className="px-4 py-3 text-slate-700">{row.objectName}</td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={`font-bold ${row.days > 14 ? 'text-red-600' : row.days > 7 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                            {row.days}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Cost analytics */}
@@ -319,7 +362,6 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
       {/* ── LIST TAB ───────────────────────────────────────────────────── */}
       {tab === 'list' && (
         <div>
-          {/* Filters */}
           <div className="flex flex-wrap gap-3 mb-4">
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -346,7 +388,6 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
             </div>
           </div>
 
-          {/* Table */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -358,7 +399,6 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
                     <th className="px-5 py-3 text-left font-medium">РП</th>
                     <th className="px-5 py-3 text-right font-medium">До НТС, тыс.</th>
                     <th className="px-5 py-3 text-right font-medium">Превышение</th>
-                    <th className="px-5 py-3 text-center font-medium">ВКС</th>
                     <th className="px-5 py-3 text-center font-medium">Чек-лист</th>
                     <th className="px-5 py-3" />
                   </tr>
@@ -366,7 +406,7 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
                 <tbody className="divide-y divide-slate-100">
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-5 py-12 text-center text-slate-400">
+                      <td colSpan={8} className="px-5 py-12 text-center text-slate-400">
                         <FlaskConical size={28} className="mx-auto mb-2 opacity-30" />
                         <p>{entries.length === 0 ? 'Нет записей НТС. Нажмите «Добавить НТС».' : 'Ничего не найдено.'}</p>
                       </td>
@@ -375,8 +415,8 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
                   {filtered.map(e => {
                     const pct = excessPct(e);
                     const sCfg = NTS_STATUS_CONFIG[e.status];
-                    const sesCount = sessionCount(e.id);
                     const roundExists = hasRound(e.id);
+                    const approved = lastRoundApproved(e.id);
                     return (
                       <tr key={e.id} className="hover:bg-indigo-50/30 cursor-pointer transition" onClick={() => setSelectedEntry(e)}>
                         <td className="px-5 py-4">
@@ -414,14 +454,11 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
                           </div>
                         </td>
                         <td className="px-5 py-4 text-center">
-                          <span className={`text-xs font-medium ${sesCount > 0 ? 'text-violet-700' : 'text-slate-300'}`}>
-                            {sesCount > 0 ? sesCount : '—'}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-center">
-                          {roundExists
-                            ? <CheckCircle2 size={16} className="text-emerald-500 inline" />
-                            : <span className="text-slate-300 text-xs">—</span>}
+                          {!roundExists
+                            ? <span className="text-slate-300 text-xs">—</span>
+                            : approved
+                              ? <CheckCircle2 size={16} className="text-emerald-500 inline" />
+                              : <span className="text-xs text-amber-600 font-medium">В работе</span>}
                         </td>
                         <td className="px-5 py-4 text-right">
                           <ChevronRight size={16} className="text-slate-300 inline" />
@@ -457,16 +494,6 @@ function KpiCard({ icon, label, value, bg }: { icon: React.ReactNode; label: str
       <div className="flex items-center gap-2 mb-2">{icon}</div>
       <div className="text-3xl font-bold text-slate-900 mb-1">{value}</div>
       <div className="text-xs text-slate-600 font-medium">{label}</div>
-    </div>
-  );
-}
-
-function TimelineBlock({ label, value, note, color }: { label: string; value: string; note?: string; color: string }) {
-  return (
-    <div className="text-center">
-      <div className={`text-2xl font-bold ${color}`}>{value}</div>
-      <div className="text-xs text-slate-500 mt-1 font-medium">{label}</div>
-      {note && <div className="text-xs text-slate-400 mt-0.5">{note}</div>}
     </div>
   );
 }
