@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { CheckCircle } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { CheckCircle, X } from 'lucide-react';
 
 interface ToastProps {
   message: string;
@@ -9,6 +9,13 @@ interface ToastProps {
 
 export default function Toast({ message, duration = 3000, onClose }: ToastProps) {
   const [visible, setVisible] = useState(false);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const dismiss = () => {
+    timersRef.current.forEach(clearTimeout);
+    setVisible(false);
+    setTimeout(() => onClose(), 300);
+  };
 
   useEffect(() => {
     // Trigger enter animation
@@ -18,10 +25,10 @@ export default function Toast({ message, duration = 3000, onClose }: ToastProps)
     // Unmount after exit animation
     const closeTimer = setTimeout(() => onClose(), duration);
 
+    timersRef.current = [enterTimer, exitTimer, closeTimer];
+
     return () => {
-      clearTimeout(enterTimer);
-      clearTimeout(exitTimer);
-      clearTimeout(closeTimer);
+      timersRef.current.forEach(clearTimeout);
     };
   }, [duration, onClose]);
 
@@ -33,6 +40,13 @@ export default function Toast({ message, duration = 3000, onClose }: ToastProps)
     >
       <CheckCircle size={16} className="text-emerald-500 shrink-0" />
       {message}
+      <button
+        onClick={dismiss}
+        aria-label="Dismiss notification"
+        className="ml-1 -mr-1 p-0.5 rounded hover:bg-emerald-50 text-emerald-400 hover:text-emerald-600 transition-colors"
+      >
+        <X size={14} />
+      </button>
     </div>
   );
 }
