@@ -33,6 +33,8 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
   const [selectedFocusTaskId, setSelectedFocusTaskId] = useState<number | null>(null);
   const [deleteDialogDetailAddress, setDeleteDialogDetailAddress] = useState<Address | null>(null);
   const [deleteDialogFocusTaskId, setDeleteDialogFocusTaskId] = useState<number | null>(null);
+  // Local health-badge filter (independent of the external statusFilter prop)
+  const [localStatusFilter, setLocalStatusFilter] = useState<string | null>(null);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -51,48 +53,103 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
     }
   };
 
-  const searchFiltered = addresses.filter((a) =>
-    a["Код УИН"].toLowerCase().includes(search.toLowerCase()) ||
-    a["Наименование объекта"].toLowerCase().includes(search.toLowerCase()) ||
-    a["Городской округ"].toLowerCase().includes(search.toLowerCase()) ||
-    (a["Руководитель проекта"] || '').toLowerCase().includes(search.toLowerCase())
-  );
-
-  // When a status filter is active, show only objects that have at least one task matching
-  // 'in_work' covers both 'in_progress' and 'new' (matches the dashboard KPI card count)
-  const filtered = statusFilter
-    ? searchFiltered.filter(a => {
-        const addrTasks = tasks.filter(t => t.object_uin === a["Код УИН"]);
-        return addrTasks.some(t => {
-          const s = getAutoStatus(t.status, t.deadline);
-          if (statusFilter === 'in_work') return s === 'in_progress' || s === 'new';
-          return s === statusFilter;
-        });
-      })
-    : searchFiltered;
-
   const tasksByUin = (uin: string) => tasks.filter(t => t.object_uin === uin);
+
+  // Global health counts across all objects (for the badge row)
+  const statusOrder = ['overdue', 'in_progress', 'new', 'completed'] as const;
+  const globalStatusCounts = (() => {
+    const counts: Record<string, number> = {};
+    for (const task of tasks) {
+      const s = getAutoStatus(task.status, task.deadline);
+      counts[s] = (counts[s] ?? 0) + 1;
+    }
+    return counts;
+  })();
+
+  const filtered = addresses.filter((a) => {
+    const matchesSearch =
+      a["Код УИН"].toLowerCase().includes(search.toLowerCase()) ||
+      a["Наименование объекта"].toLowerCase().includes(search.toLowerCase()) ||
+      a["Городской округ"].toLowerCase().includes(search.toLowerCase()) ||
+      (a["Руководитель проекта"] || '').toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+
+    const addrTasks = tasks.filter(t => t.object_uin === a["Код УИН"]);
+
+    // External filter from dashboard (in_work covers in_progress + new)
+    if (statusFilter) {
+      const passesExternal = addrTasks.some(t => {
+        const s = getAutoStatus(t.status, t.deadline);
+        if (statusFilter === 'in_work') return s === 'in_progress' || s === 'new';
+        return s === statusFilter;
+      });
+      if (!passesExternal) return false;
+    }
+
+    // Local health-badge filter
+    if (localStatusFilter) {
+      const passesLocal = addrTasks.some(t => getAutoStatus(t.status, t.deadline) === localStatusFilter);
+      if (!passesLocal) return false;
+    }
+
+    return true;
+  });
 
   return (
     <>
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-900 mb-1">Справочник объектов</h2>
-          <p className="text-slate-500">
+          <p className="text-slate-500 mb-3">
             {statusFilter
               ? `Показаны объекты: ${STATUS_FILTER_LABELS[statusFilter]} · ${filtered.length} из ${addresses.length}`
               : `Всего объектов: ${addresses.length}`}
           </p>
+          {/* External filter indicator (from dashboard KPI navigation) */}
           {statusFilter && (
             <button
               onClick={onClearFilter}
-              className="mt-2 flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition font-medium"
+              className="mb-2 flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition font-medium"
             >
               <Filter size={12} />
               Фильтр: {STATUS_FILTER_LABELS[statusFilter]}
               <XIcon size={12} className="ml-1 opacity-60" />
               Сбросить
             </button>
+          )}
+          {/* Health summary badge row */}
+          {tasks.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {statusOrder.filter(s => globalStatusCounts[s]).map(s => {
+                const cfg = STATUS_CONFIG[s];
+                const count = globalStatusCounts[s];
+                const isActive = localStatusFilter === s;
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setLocalStatusFilter(isActive ? null : s)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition
+                      ${isActive
+                        ? `${cfg.bg} ${cfg.color} border-current shadow-sm ring-2 ring-offset-1 ring-current/30`
+                        : `${cfg.bg} ${cfg.color} border-transparent opacity-80 hover:opacity-100 hover:border-current`
+                      }`}
+                    title={isActive ? 'Сбросить фильтр' : `Показать только объекты со статусом «${cfg.label}»`}
+                  >
+                    <span className="text-sm font-bold">{count}</span>
+                    <span>{cfg.label.toLowerCase()}</span>
+                  </button>
+                );
+              })}
+              {localStatusFilter && (
+                <button
+                  onClick={() => setLocalStatusFilter(null)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-500 hover:bg-slate-100 transition"
+                  title="Сбросить фильтр"
+                >
+                  × сбросить
+                </button>
+              )}
+            </div>
           )}
         </div>
         {isAdmin && (
