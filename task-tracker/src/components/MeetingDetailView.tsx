@@ -60,13 +60,13 @@ export default function MeetingDetailView({
 
   const updateStatus = async (taskId: number, newStatus: string) => {
     await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId);
-    onReload();
+    // Real-time subscription in App.tsx propagates the UPDATE automatically
   };
 
   const deleteTask = async (taskId: number) => {
     if (!window.confirm('Удалить поручение?')) return;
     await supabase.from('tasks').delete().eq('id', taskId);
-    onReload();
+    // Real-time subscription in App.tsx propagates the DELETE automatically
   };
 
   const deleteLink = async (linkId: number, e: React.MouseEvent) => {
@@ -243,7 +243,7 @@ export default function MeetingDetailView({
           meetingId={meetingId}
           availableObjects={availableObjects}
           onClose={() => setShowTaskModal(false)}
-          onCreated={onReload}
+          onCreated={() => { /* real-time subscription picks up the new task */ }}
         />
       )}
 
