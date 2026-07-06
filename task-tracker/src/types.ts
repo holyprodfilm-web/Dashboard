@@ -14,11 +14,15 @@ export interface ClosureObject {
   mogae_status: MogaeStatus | null;
   typical_block: string | null;
   smr_completed: string | null;
+  smr_pct: string | null;
+  id_ks_submitted: string | null;
   payment_status: PaymentStatus;
   contract_sum: number;
   paid_sum: number;
   remaining_sum: number;
   typical_cause: string | null;
+  typical_cause_smr: string | null;
+  typical_cause_idks: string | null;
   payment_reason: string | null;
   payment_date: string | null;
   actions: string;

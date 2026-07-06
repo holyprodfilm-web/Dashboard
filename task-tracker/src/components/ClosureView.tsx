@@ -3,6 +3,7 @@ import {
   Loader2, AlertCircle, CheckCircle2, Clock3, XCircle, MinusCircle,
   Building2, ChevronDown, ChevronUp, Search, RefreshCw, TrendingUp,
   BarChart2, AlertTriangle, Layers, Pencil, Upload, History, Calendar,
+  Trophy, Star,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -20,19 +21,65 @@ const PAYMENT_CFG: Record<PaymentStatus, { label: string; color: string; bg: str
 };
 
 const FIELD_LABELS: Record<string, string> = {
-  payment_status: 'Статус оплаты',
-  mogae_status:   'Статус МОГЭ',
-  contract_sum:   'Сумма договора',
-  paid_sum:       'Оплачено',
-  remaining_sum:  'Остаток',
-  comment:        'Комментарий',
-  smr_completed:  'СМР выполнено',
-  typical_block:  'Блок причин',
-  typical_cause:  'Причина',
-  payment_reason: 'Обоснование',
-  payment_date:   'Дата оплаты',
-  actions:        'Действия',
+  payment_status:    'Статус оплаты',
+  mogae_status:      'Статус МОГЭ',
+  mogae_approved:    'МОГЭ одобрено',
+  smr_completed:     'СМР завершено',
+  smr_pct:           'СГ%',
+  id_ks_submitted:   'ИД и КС сданы',
+  contract_sum:      'Сумма договора',
+  paid_sum:          'Оплачено',
+  remaining_sum:     'Остаток',
+  comment:           'Комментарий',
+  typical_block:     'Блок причин',
+  typical_cause:     'Причина МОГЭ',
+  typical_cause_smr: 'Причина СМР',
+  typical_cause_idks:'Причина ИД/КС',
+  payment_reason:    'Обоснование оплаты',
+  payment_date:      'Дата оплаты',
+  actions:           'Действия',
 };
+
+// ── Funnel logic ──────────────────────────────────────────────────────────────
+
+type FunnelBlock = 'b1' | 'b2' | 'b3' | 'b4' | 'paid' | 'terminated';
+
+const isDa = (val: string | null | undefined): boolean =>
+  (val ?? '').trim().toLowerCase() === 'да';
+
+function getFunnelBlock(r: ClosureObject): FunnelBlock {
+  if (r.payment_status === 'terminated') return 'terminated';
+  if (r.payment_status === 'paid') return 'paid';
+  if (!isDa(r.mogae_approved)) return 'b1';
+  if (!isDa(r.smr_completed)) return 'b2';
+  if (!isDa(r.id_ks_submitted)) return 'b3';
+  return 'b4';
+}
+
+const CAUSE_BLOCKS: Array<{
+  num: number; key: FunnelBlock; color: string; icon: string;
+  title: string; colSource: string;
+  getCause: (r: ClosureObject) => string;
+}> = [
+  { num: 1, key: 'b1', color: '#d63030', icon: '📋',
+    title: 'Положительное заключение МОГЭ не получено',
+    colSource: 'Типовая причина МОГЭ',
+    getCause: (r) => r.typical_cause || 'Не указана' },
+  { num: 2, key: 'b2', color: '#e07030', icon: '🏗️',
+    title: 'СМР не завершён',
+    colSource: 'Типовая причина СМР',
+    getCause: (r) => r.typical_cause_smr || 'Не указана' },
+  { num: 3, key: 'b3', color: '#8b35d6', icon: '📁',
+    title: 'ИД и КС не сданы в УТНКР',
+    colSource: 'Типовая причина ИД/КС',
+    getCause: (r) => r.typical_cause_idks || 'Не указана' },
+  { num: 4, key: 'b4', color: '#1b5e8a', icon: '💰',
+    title: 'Ожидаются заявки от ОМСУ на оплату',
+    colSource: 'Обоснование оплаты',
+    getCause: (r) => r.payment_reason || 'Не указана' },
+];
+
+// ── Formatters ────────────────────────────────────────────────────────────────
 
 const fmtBln  = (v: number) => (v / 1e9).toFixed(2).replace('.', ',') + ' млрд ₽';
 const fmtMln  = (v: number) => (v / 1e6).toFixed(1).replace('.', ',') + ' млн ₽';
@@ -41,6 +88,19 @@ const fmtMlnN = (v: number | null | undefined) =>
   !v || isNaN(v) ? '—' : (v / 1e6).toFixed(2).replace('.', ',');
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+// ── CheckBadge ────────────────────────────────────────────────────────────────
+
+function CheckBadge({ val }: { val: string | null | undefined }) {
+  if (!val) return <span className="text-slate-300 text-[10px]">—</span>;
+  const isDa = val.trim().toLowerCase() === 'да';
+  if (isDa) return (
+    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">✓ Да</span>
+  );
+  return (
+    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-600 whitespace-nowrap">{val}</span>
+  );
+}
 
 // ── Donut chart ───────────────────────────────────────────────────────────────
 
@@ -123,7 +183,61 @@ function MoneyCard({ label: lbl, value, sub, pct, accent }: {
   );
 }
 
-// ── Objects table (with inline edit) ─────────────────────────────────────────
+// ── Pipeline section ──────────────────────────────────────────────────────────
+
+function PipelineSection({ data }: { data: ClosureObject[] }) {
+  const active = data.filter(r => r.payment_status !== 'terminated');
+  const counts = {
+    b1: active.filter(r => getFunnelBlock(r) === 'b1').length,
+    b2: active.filter(r => getFunnelBlock(r) === 'b2').length,
+    b3: active.filter(r => getFunnelBlock(r) === 'b3').length,
+    b4: active.filter(r => getFunnelBlock(r) === 'b4').length,
+    paid: active.filter(r => getFunnelBlock(r) === 'paid').length,
+  };
+
+  const steps = [
+    { num: 1, icon: '📋', label: 'Получение\nМОГЭ', count: counts.b1, color: '#d63030', bg: '#fff0f0' },
+    { num: 2, icon: '🏗️', label: 'Завершение\nСМР',  count: counts.b2, color: '#e07030', bg: '#fff6f0' },
+    { num: 3, icon: '📁', label: 'Сдача ИД\nи КС',   count: counts.b3, color: '#8b35d6', bg: '#f8f0ff' },
+    { num: 4, icon: '💰', label: 'Ожидание\nоплаты', count: counts.b4, color: '#1b5e8a', bg: '#f0f4ff' },
+  ];
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
+      <h3 className="text-xs font-bold text-[#8A4C08] uppercase tracking-wide mb-4">
+        🔄 Путь подрядчика к оплате
+      </h3>
+      <div className="flex items-stretch gap-2">
+        {steps.map((s, i) => (
+          <Fragment key={s.num}>
+            <div className="flex-1 rounded-xl p-3 text-center border-2 flex flex-col items-center justify-center gap-1.5 min-h-[110px]"
+              style={{ background: s.bg, borderColor: s.color + '30' }}>
+              <div className="w-5 h-5 rounded-full text-white text-[10px] font-black flex items-center justify-center flex-shrink-0"
+                style={{ background: s.color }}>{s.num}</div>
+              <div className="text-xl leading-none">{s.icon}</div>
+              <div className="text-[11px] font-semibold text-slate-700 leading-tight whitespace-pre-line">{s.label}</div>
+              <div className="text-2xl font-black leading-none" style={{ color: s.color }}>{s.count}</div>
+              <div className="text-[10px] text-slate-400">объектов</div>
+            </div>
+            {i < steps.length - 1 && (
+              <div className="flex items-center text-slate-300 text-lg flex-shrink-0">→</div>
+            )}
+          </Fragment>
+        ))}
+        <div className="flex items-center text-slate-300 text-lg flex-shrink-0">→</div>
+        <div className="flex-1 rounded-xl p-3 text-center flex flex-col items-center justify-center gap-1.5 min-h-[110px] text-white"
+          style={{ background: 'linear-gradient(135deg,#059669,#0d9488)' }}>
+          <div className="text-xl leading-none">✅</div>
+          <div className="text-[11px] font-semibold whitespace-pre-line opacity-90">Оплачено</div>
+          <div className="text-2xl font-black leading-none">{counts.paid}</div>
+          <div className="text-[10px] opacity-75">объектов</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Objects table ─────────────────────────────────────────────────────────────
 
 function ObjectsTable({
   rows,
@@ -145,6 +259,7 @@ function ObjectsTable({
   }, [rows, q]);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
+  const colSpan = canEdit ? 16 : 15;
 
   return (
     <div>
@@ -158,27 +273,30 @@ function ObjectsTable({
         <span className="text-xs text-slate-400">{filtered.length} из {rows.length}</span>
       </div>
       <div className="overflow-x-auto rounded-xl border border-slate-200">
-        <table className="w-full text-xs min-w-[1180px]">
+        <table className="w-full text-xs min-w-[1380px]">
           <thead className="bg-slate-50 text-slate-600 uppercase">
             <tr>
-              <th className="px-3 py-2 text-left font-semibold w-6">#</th>
-              <th className="px-3 py-2 text-left font-semibold">ОМСУ</th>
-              <th className="px-3 py-2 text-left font-semibold">Тип</th>
-              <th className="px-3 py-2 text-left font-semibold">Мероприятие</th>
-              <th className="px-3 py-2 text-left font-semibold">Подрядчик</th>
-              <th className="px-3 py-2 text-center font-semibold">Статус</th>
-              <th className="px-3 py-2 text-right font-semibold">Контракт, млн</th>
-              <th className="px-3 py-2 text-right font-semibold">Оплачено, млн</th>
-              <th className="px-3 py-2 text-right font-semibold">Остаток, млн</th>
-              <th className="px-3 py-2 text-left font-semibold">Дата оплаты</th>
-              <th className="px-3 py-2 text-left font-semibold">МОГЭ</th>
-              <th className="px-3 py-2 text-left font-semibold">СМР</th>
-              {canEdit && <th className="px-3 py-2 w-8" />}
+              <th className="px-2 py-2 text-left font-semibold w-6">#</th>
+              <th className="px-2 py-2 text-left font-semibold">ОМСУ</th>
+              <th className="px-2 py-2 text-left font-semibold">Мероприятие</th>
+              <th className="px-2 py-2 text-left font-semibold">Подрядчик</th>
+              <th className="px-2 py-2 text-center font-semibold">МОГЭ</th>
+              <th className="px-2 py-2 text-center font-semibold">СМР</th>
+              <th className="px-2 py-2 text-center font-semibold">СГ%</th>
+              <th className="px-2 py-2 text-center font-semibold">ИД/КС</th>
+              <th className="px-2 py-2 text-center font-semibold">Статус оплаты</th>
+              <th className="px-2 py-2 text-right font-semibold">Контракт</th>
+              <th className="px-2 py-2 text-right font-semibold">Оплачено</th>
+              <th className="px-2 py-2 text-right font-semibold">Остаток</th>
+              <th className="px-2 py-2 text-left font-semibold">Дата оплаты</th>
+              <th className="px-2 py-2 text-left font-semibold">Комментарий</th>
+              <th className="px-2 py-2 text-left font-semibold">Действия</th>
+              {canEdit && <th className="px-2 py-2 w-8" />}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 ? (
-              <tr><td colSpan={canEdit ? 13 : 12} className="text-center py-10 text-slate-400">Нет данных</td></tr>
+              <tr><td colSpan={colSpan} className="text-center py-10 text-slate-400">Нет данных</td></tr>
             ) : filtered.map((r, i) => {
               const cfg = PAYMENT_CFG[r.payment_status];
               const pdDate = r.payment_date ? new Date(r.payment_date) : null;
@@ -192,20 +310,27 @@ function ObjectsTable({
                   className={`transition group ${isOverdue ? 'bg-[#FFF0F3]' : ''} ${canEdit ? 'hover:bg-teal-50 cursor-pointer' : 'hover:bg-slate-50'}`}
                   onClick={() => canEdit && onEdit?.(r)}
                 >
-                  <td className="px-3 py-2 text-slate-400">{i + 1}</td>
-                  <td className="px-3 py-2 font-semibold text-[#8A4C08] whitespace-nowrap">{r.omsu}</td>
-                  <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{r.object_type ?? '—'}</td>
-                  <td className="px-3 py-2 text-slate-700 max-w-xs leading-snug">{r.object_name}</td>
-                  <td className="px-3 py-2 text-slate-500 max-w-[160px] truncate">{r.contractor || '—'}</td>
-                  <td className="px-3 py-2 text-center">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.color}`}>
+                  <td className="px-2 py-2 text-slate-400">{i + 1}</td>
+                  <td className="px-2 py-2 font-semibold text-[#8A4C08] whitespace-nowrap">{r.omsu}</td>
+                  <td className="px-2 py-2 text-slate-700 max-w-[200px] leading-snug">{r.object_name}</td>
+                  <td className="px-2 py-2 text-slate-500 max-w-[140px] truncate">{r.contractor || '—'}</td>
+                  <td className="px-2 py-2 text-center"><CheckBadge val={r.mogae_approved} /></td>
+                  <td className="px-2 py-2 text-center"><CheckBadge val={r.smr_completed} /></td>
+                  <td className="px-2 py-2 text-center">
+                    {r.smr_pct
+                      ? <span className="text-[11px] font-bold text-emerald-700">{r.smr_pct}</span>
+                      : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-2 py-2 text-center"><CheckBadge val={r.id_ks_submitted} /></td>
+                  <td className="px-2 py-2 text-center">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${cfg.bg} ${cfg.color}`}>
                       {cfg.label}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{fmtMlnN(r.contract_sum)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-emerald-600">{fmtMlnN(r.paid_sum)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-[#E93A58]">{fmtMlnN(r.remaining_sum)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-2 py-2 text-right tabular-nums">{fmtMlnN(r.contract_sum)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-emerald-600">{fmtMlnN(r.paid_sum)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-[#E93A58]">{fmtMlnN(r.remaining_sum)}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">
                     {pdDate ? (
                       <span className={`text-xs font-medium ${
                         isOverdue ? 'text-[#E93A58] font-bold' : isSoon ? 'text-amber-600' : 'text-slate-500'
@@ -221,10 +346,10 @@ function ObjectsTable({
                       </span>
                     ) : <span className="text-slate-300">—</span>}
                   </td>
-                  <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{r.mogae_status ?? '—'}</td>
-                  <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{r.smr_completed ?? '—'}</td>
+                  <td className="px-2 py-2 text-slate-500 max-w-[160px] truncate" title={r.comment ?? ''}>{r.comment || '—'}</td>
+                  <td className="px-2 py-2 text-slate-500 max-w-[160px] truncate" title={r.actions ?? ''}>{r.actions || '—'}</td>
                   {canEdit && (
-                    <td className="px-3 py-2">
+                    <td className="px-2 py-2">
                       <button
                         onClick={e => { e.stopPropagation(); onEdit?.(r); }}
                         className="p-1 text-slate-300 group-hover:text-teal-600 hover:bg-teal-100 rounded-lg transition"
@@ -248,7 +373,9 @@ function ObjectsTable({
 
 interface ContrRow {
   name: string; total: number; paid: number; partial: number;
-  not_paid: number; terminated: number; contract: number; remain: number;
+  not_paid: number; terminated: number;
+  b1: number; b2: number; b3: number; b4: number;
+  contract: number; remain: number;
   objects: ClosureObject[];
 }
 
@@ -260,10 +387,15 @@ function ContractorsTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEd
     const map: Record<string, ContrRow> = {};
     data.forEach(r => {
       const name = r.contractor || 'Не указан';
-      if (!map[name]) map[name] = { name, total: 0, paid: 0, partial: 0, not_paid: 0, terminated: 0, contract: 0, remain: 0, objects: [] };
+      if (!map[name]) map[name] = { name, total: 0, paid: 0, partial: 0, not_paid: 0, terminated: 0, b1: 0, b2: 0, b3: 0, b4: 0, contract: 0, remain: 0, objects: [] };
       const m = map[name];
       m.total++;
       m[r.payment_status]++;
+      const blk = getFunnelBlock(r);
+      if (blk === 'b1') m.b1++;
+      else if (blk === 'b2') m.b2++;
+      else if (blk === 'b3') m.b3++;
+      else if (blk === 'b4') m.b4++;
       m.contract += r.contract_sum ?? 0;
       m.remain += r.remaining_sum ?? 0;
       m.objects.push(r);
@@ -278,12 +410,17 @@ function ContractorsTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEd
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[900px]">
-          <thead className="bg-[#8A4C08] text-white text-xs uppercase">
+        <table className="w-full text-xs min-w-[1100px]">
+          <thead className="bg-[#8A4C08] text-white uppercase">
             <tr>
-              <th className="px-4 py-3 text-left">Подрядчик</th>
-              {([['total','Всего'],['paid','Оплачено'],['partial','Частично'],['not_paid','Не оплачено'],['terminated','Расторгнуто'],['contract','Контракт, млн'],['remain','Остаток, млн']] as [keyof ContrRow, string][]).map(([k, lbl]) => (
-                <th key={k} className="px-4 py-3 text-right cursor-pointer hover:bg-[#a06020] select-none"
+              <th className="px-3 py-3 text-left">Подрядчик</th>
+              {([
+                ['total','Всего'],['paid','Оплачено'],['partial','Частично'],
+                ['not_paid','Не оплачено'],['terminated','Расторгнуто'],
+                ['b1','📋МОГЭ'],['b2','🏗СМР'],['b3','📁ИД/КС'],['b4','💰Оплата'],
+                ['contract','Контракт,млн'],['remain','Остаток,млн'],
+              ] as [keyof ContrRow, string][]).map(([k, lbl]) => (
+                <th key={k} className="px-3 py-3 text-right cursor-pointer hover:bg-[#a06020] select-none"
                   onClick={() => toggleSort(k)}>
                   {lbl}{sortInd(k)}
                 </th>
@@ -295,21 +432,25 @@ function ContractorsTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEd
               <Fragment key={r.name}>
                 <tr className="hover:bg-teal-50 cursor-pointer transition"
                   onClick={() => setOpenRow(openRow === r.name ? null : r.name)}>
-                  <td className="px-4 py-3 font-semibold text-teal-700 flex items-center gap-2">
-                    {openRow === r.name ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  <td className="px-3 py-2.5 font-semibold text-teal-700 flex items-center gap-2">
+                    {openRow === r.name ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                     {r.name}
                   </td>
-                  <td className="px-4 py-3 text-right font-bold">{r.total}</td>
-                  <td className="px-4 py-3 text-right text-emerald-600 font-semibold">{r.paid}</td>
-                  <td className="px-4 py-3 text-right text-amber-600 font-semibold">{r.partial}</td>
-                  <td className="px-4 py-3 text-right text-[#E93A58] font-semibold">{r.not_paid}</td>
-                  <td className="px-4 py-3 text-right text-slate-400">{r.terminated}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{fmtMlnN(r.contract)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-[#E93A58] font-semibold">{fmtMlnN(r.remain)}</td>
+                  <td className="px-3 py-2.5 text-right font-bold">{r.total}</td>
+                  <td className="px-3 py-2.5 text-right text-emerald-600 font-semibold">{r.paid || '—'}</td>
+                  <td className="px-3 py-2.5 text-right text-amber-600 font-semibold">{r.partial || '—'}</td>
+                  <td className="px-3 py-2.5 text-right text-[#E93A58] font-semibold">{r.not_paid || '—'}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-400">{r.terminated || '—'}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold" style={{ color: r.b1 ? '#d63030' : '#94a3b8' }}>{r.b1 || '—'}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold" style={{ color: r.b2 ? '#e07030' : '#94a3b8' }}>{r.b2 || '—'}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold" style={{ color: r.b3 ? '#8b35d6' : '#94a3b8' }}>{r.b3 || '—'}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold" style={{ color: r.b4 ? '#1b5e8a' : '#94a3b8' }}>{r.b4 || '—'}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{fmtMlnN(r.contract)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-[#E93A58] font-semibold">{fmtMlnN(r.remain)}</td>
                 </tr>
                 {openRow === r.name && (
                   <tr>
-                    <td colSpan={8} className="bg-slate-50 px-6 py-4">
+                    <td colSpan={12} className="bg-slate-50 px-4 py-4">
                       <ObjectsTable rows={r.objects} onEdit={onEdit} canEdit={canEdit} />
                     </td>
                   </tr>
@@ -323,77 +464,137 @@ function ContractorsTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEd
   );
 }
 
-// ── Causes tab ────────────────────────────────────────────────────────────────
+// ── Causes tab (4-block funnel structure) ────────────────────────────────────
 
 function CausesTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEdit: (r: ClosureObject) => void; canEdit: boolean }) {
-  const [openCause, setOpenCause] = useState<string | null>(null);
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [openMogae, setOpenMogae] = useState<string | null>(null);
 
-  const blocks = useMemo(() => {
-    const bmap: Record<string, Record<string, ClosureObject[]>> = {};
-    data.forEach(r => {
-      if (r.payment_status === 'paid' || r.payment_status === 'terminated') return;
-      const blk = r.typical_block || 'Прочее';
-      const cause = r.typical_cause || 'Не указана';
-      if (!bmap[blk]) bmap[blk] = {};
-      if (!bmap[blk][cause]) bmap[blk][cause] = [];
-      bmap[blk][cause].push(r);
+  const byBlock = useMemo(() => {
+    const result: Record<string, { items: ClosureObject[]; byMogae: Record<string, ClosureObject[]>; byCause: Record<string, ClosureObject[]> }> = {};
+    CAUSE_BLOCKS.forEach(b => {
+      result[b.key] = { items: [], byMogae: {}, byCause: {} };
     });
-    return Object.entries(bmap).map(([blk, causes]) => ({
-      blk,
-      total: Object.values(causes).reduce((s, arr) => s + arr.length, 0),
-      causes: Object.entries(causes).sort((a, b) => b[1].length - a[1].length),
-    })).sort((a, b) => b.total - a.total);
+    data.forEach(r => {
+      const blk = getFunnelBlock(r);
+      if (blk === 'paid' || blk === 'terminated') return;
+      const cfg = CAUSE_BLOCKS.find(b => b.key === blk);
+      if (!cfg) return;
+      const cause = cfg.getCause(r);
+      result[blk].items.push(r);
+      if (!result[blk].byCause[cause]) result[blk].byCause[cause] = [];
+      result[blk].byCause[cause].push(r);
+      // МОГЭ sub-split only for block 1
+      if (blk === 'b1') {
+        const ms = r.mogae_status || 'Не указано';
+        if (!result[blk].byMogae[ms]) result[blk].byMogae[ms] = [];
+        result[blk].byMogae[ms].push(r);
+      }
+    });
+    return result;
   }, [data]);
 
-  const maxCause = useMemo(() =>
-    Math.max(1, ...blocks.flatMap(b => b.causes.map(([, arr]) => arr.length))), [blocks]);
-
-  const blockColors = ['#E97386','#EFA566','#059669','#6366f1','#d97706','#0891b2'];
-
-  if (blocks.length === 0)
-    return <div className="text-center text-slate-400 py-16">Данных о причинах нет</div>;
+  const MOGAE_SPLIT = [
+    { key: 'Заходили',            label: '🔄 Заходили в МОГЭ',     color: '#c07a00', bg: '#fff8e8', border: '#e0c060' },
+    { key: 'В МОГЭ',              label: '⏳ Находятся в МОГЭ',    color: '#1a6fba', bg: '#eef5ff', border: '#90c0f0' },
+    { key: 'Не заходили ни разу', label: '🚫 Не заходили ни разу', color: '#d63030', bg: '#fff2f2', border: '#f09090' },
+    { key: 'Не указано',          label: '❓ Статус не указан',    color: '#64748b', bg: '#f8fafc', border: '#cbd5e1' },
+  ];
 
   return (
     <div className="space-y-4">
-      {blocks.map(({ blk, total, causes }, bi) => {
-        const color = blockColors[bi % blockColors.length];
+      {CAUSE_BLOCKS.map(cfg => {
+        const blkData = byBlock[cfg.key];
+        const sortedCauses = Object.entries(blkData.byCause).sort((a, b) => b[1].length - a[1].length);
+        const maxC = sortedCauses.length > 0 ? sortedCauses[0][1].length : 1;
+
         return (
-          <div key={blk} className="rounded-2xl overflow-hidden shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between px-6 py-4 text-white" style={{ background: color }}>
+          <div key={cfg.key} className="rounded-2xl overflow-hidden shadow-sm border border-slate-200">
+            {/* Block header */}
+            <div className="flex items-center justify-between px-6 py-4 text-white" style={{ background: cfg.color }}>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-white/25 flex items-center justify-center font-black text-sm">{bi + 1}</div>
-                <span className="font-bold text-base">{blk}</span>
+                <div className="w-8 h-8 rounded-full bg-white/25 flex items-center justify-center font-black text-sm">{cfg.num}</div>
+                <div>
+                  <div className="font-bold text-base">{cfg.icon} {cfg.title}</div>
+                  <div className="text-xs opacity-80 mt-0.5">{cfg.colSource}</div>
+                </div>
               </div>
-              <span className="bg-white/20 rounded-full px-4 py-1 font-bold">{total} объектов</span>
+              <span className="bg-white/20 rounded-full px-4 py-1 font-bold text-sm flex-shrink-0">{blkData.items.length} объектов</span>
             </div>
-            <div className="bg-white px-6 py-4 space-y-1">
-              {causes.map(([cause, rows]) => {
-                const pct = Math.round((rows.length / maxCause) * 100);
-                const key = blk + '|' + cause;
-                const open = openCause === key;
-                return (
-                  <div key={cause}>
-                    <div
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer border transition
-                        ${open ? 'bg-slate-50 border-slate-200' : 'border-transparent hover:bg-slate-50 hover:border-slate-200'}`}
-                      onClick={() => setOpenCause(open ? null : key)}
-                    >
-                      <span className="flex-1 text-sm text-slate-700">{cause}</span>
-                      <div className="w-36 h-2.5 bg-slate-100 rounded-full overflow-hidden flex-shrink-0">
-                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
-                      </div>
-                      <span className="text-sm font-bold w-7 text-right" style={{ color }}>{rows.length}</span>
-                      {open ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+
+            {blkData.items.length === 0 ? (
+              <div className="bg-white px-6 py-6 text-center text-slate-400 text-sm italic">
+                Нет объектов в этом блоке
+              </div>
+            ) : (
+              <div className="bg-white px-6 py-4 space-y-3">
+
+                {/* МОГЭ sub-split (block 1 only) */}
+                {cfg.key === 'b1' && (
+                  <div className="grid grid-cols-3 gap-3 p-4 bg-[#fff5f5] rounded-xl border border-[#f0d0d0] mb-2">
+                    <div className="col-span-3 text-xs font-bold text-[#d63030] uppercase tracking-wide mb-1">
+                      📋 Разбивка: статус захода в МОГЭ
                     </div>
-                    {open && (
-                      <div className="mt-1 mb-2 border border-slate-200 rounded-xl overflow-hidden">
-                        <ObjectsTable rows={rows} onEdit={onEdit} canEdit={canEdit} />
-                      </div>
-                    )}
+                    {MOGAE_SPLIT.map(ms => {
+                      const arr = blkData.byMogae[ms.key] || [];
+                      const pct = blkData.items.length > 0 ? Math.round(arr.length / blkData.items.length * 100) : 0;
+                      const isOpen = openMogae === ms.key;
+                      return (
+                        <div key={ms.key}>
+                          <button
+                            onClick={() => setOpenMogae(isOpen ? null : ms.key)}
+                            className="w-full rounded-xl p-3 border-2 text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                            style={{ background: ms.bg, borderColor: ms.border, color: ms.color }}>
+                            <div className="text-xs font-bold">{ms.label}</div>
+                            <div className="text-3xl font-black leading-none mt-1">{arr.length}</div>
+                            <div className="text-xs opacity-70 mt-1">{pct}% объектов</div>
+                          </button>
+                          {isOpen && arr.length > 0 && (
+                            <div className="mt-2 border rounded-xl overflow-hidden" style={{ borderColor: ms.border }}>
+                              <ObjectsTable rows={arr} onEdit={onEdit} canEdit={canEdit} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                )}
+
+                {/* Causes list */}
+                {sortedCauses.length === 0 ? (
+                  <div className="text-sm text-slate-400 italic py-2">Типовые причины не указаны</div>
+                ) : (
+                  <div className="space-y-1">
+                    {sortedCauses.map(([cause, items]) => {
+                      const pct = Math.round((items.length / maxC) * 100);
+                      const key = cfg.key + '|' + cause;
+                      const open = openKey === key;
+                      return (
+                        <div key={cause}>
+                          <div
+                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer border transition
+                              ${open ? 'bg-slate-50 border-slate-200' : 'border-transparent hover:bg-slate-50 hover:border-slate-200'}`}
+                            onClick={() => setOpenKey(open ? null : key)}
+                          >
+                            <span className="flex-1 text-sm text-slate-700">{cause}</span>
+                            <div className="w-36 h-2.5 bg-slate-100 rounded-full overflow-hidden flex-shrink-0">
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: cfg.color }} />
+                            </div>
+                            <span className="text-sm font-bold w-7 text-right" style={{ color: cfg.color }}>{items.length}</span>
+                            {open ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+                          </div>
+                          {open && (
+                            <div className="mt-1 mb-2 border border-slate-200 rounded-xl overflow-hidden">
+                              <ObjectsTable rows={items} onEdit={onEdit} canEdit={canEdit} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
@@ -520,10 +721,8 @@ function HistoryTab({ changes, loading }: { changes: ClosureChange[]; loading: b
     <div className="text-center py-16 text-slate-400">
       <History size={40} className="mx-auto mb-3 opacity-30" />
       <p className="font-medium">История изменений пуста</p>
-      <p className="text-sm mt-1">Изменения появятся здесь после редактирования объектов</p>
     </div>
   );
-
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <table className="w-full text-sm">
@@ -574,7 +773,7 @@ function HistoryTab({ changes, loading }: { changes: ClosureChange[]; loading: b
   );
 }
 
-// ── Payment Schedule tab ─────────────────────────────────────────────────────
+// ── Payment Schedule tab ──────────────────────────────────────────────────────
 
 function ScheduleGroup({
   label, count, remain, accent, icon, objects, onEdit, canEdit, defaultOpen = false,
@@ -649,7 +848,6 @@ function PaymentScheduleTab({ data, onEdit, canEdit }: {
 
   return (
     <div className="space-y-5">
-      {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map(k => (
           <div key={k.label} className="bg-white rounded-2xl p-5 shadow-sm border-t-4" style={{ borderTopColor: k.accent }}>
@@ -664,8 +862,6 @@ function PaymentScheduleTab({ data, onEdit, canEdit }: {
           </div>
         ))}
       </div>
-
-      {/* Groups */}
       <ScheduleGroup label="🚨 Просрочено" count={overdue.length} remain={sumRemain(overdue)}
         accent="#E93A58" icon={<AlertTriangle size={18} />}
         objects={overdue} onEdit={onEdit} canEdit={canEdit} defaultOpen />
@@ -678,7 +874,6 @@ function PaymentScheduleTab({ data, onEdit, canEdit }: {
       <ScheduleGroup label="Без даты оплаты" count={noDate.length} remain={sumRemain(noDate)}
         accent="#94a3b8" icon={<MinusCircle size={18} />}
         objects={noDate} onEdit={onEdit} canEdit={canEdit} />
-
       {overdue.length === 0 && soon.length === 0 && future.length === 0 && noDate.length === 0 && (
         <div className="text-center py-16 text-slate-400">
           <CheckCircle2 size={48} className="mx-auto mb-3 text-emerald-400 opacity-50" />
@@ -689,16 +884,203 @@ function PaymentScheduleTab({ data, onEdit, canEdit }: {
   );
 }
 
+// ── Top-5 tab ─────────────────────────────────────────────────────────────────
+
+const MEDALS = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+
+function Top5Tab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEdit: (r: ClosureObject) => void; canEdit: boolean }) {
+  const byBlock = useMemo(() => {
+    const result: Record<string, ClosureObject[]> = { b1: [], b2: [], b3: [], b4: [] };
+    data.forEach(r => {
+      if (r.payment_status === 'terminated') return;
+      const blk = getFunnelBlock(r);
+      if (blk !== 'paid' && blk !== 'terminated') result[blk].push(r);
+    });
+    // sort by remaining_sum desc, take top 5
+    Object.keys(result).forEach(k => {
+      result[k] = result[k].sort((a, b) => (b.remaining_sum ?? 0) - (a.remaining_sum ?? 0)).slice(0, 5);
+    });
+    return result;
+  }, [data]);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-teal-50 border border-teal-200 rounded-2xl px-6 py-4 text-sm text-teal-800 leading-relaxed">
+        <strong>🏆 ТОП-5 объектов с наибольшим остатком</strong> по каждому блоку причин неоплаты.
+        Каждый объект присутствует только в одном блоке — в соответствии с его первой незакрытой контрольной точкой.
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {CAUSE_BLOCKS.map(cfg => {
+          const items = byBlock[cfg.key] || [];
+          return (
+            <div key={cfg.key} className="rounded-2xl overflow-hidden shadow-sm border border-slate-200">
+              <div className="flex items-center gap-3 px-5 py-4 text-white" style={{ background: cfg.color }}>
+                <Trophy size={18} className="opacity-80" />
+                <div>
+                  <div className="font-bold text-sm">{cfg.icon} {cfg.title}</div>
+                  <div className="text-xs opacity-75 mt-0.5">ТОП-5 по остатку к выплате</div>
+                </div>
+              </div>
+              <div className="bg-white divide-y divide-slate-100">
+                {items.length === 0 ? (
+                  <div className="px-5 py-8 text-center text-slate-400 text-sm italic">Нет объектов</div>
+                ) : items.map((r, idx) => (
+                  <div key={r.id}
+                    className={`flex items-stretch hover:bg-slate-50 transition ${canEdit ? 'cursor-pointer' : ''}`}
+                    onClick={() => canEdit && onEdit(r)}>
+                    <div className="w-11 flex-shrink-0 flex items-center justify-center text-xl font-black border-r border-slate-100"
+                      style={{ color: cfg.color, background: cfg.color + '12' }}>{MEDALS[idx]}</div>
+                    <div className="flex-1 px-4 py-3 min-w-0">
+                      <div className="text-sm text-slate-800 leading-snug">{r.object_name}</div>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="text-xs font-bold" style={{ color: cfg.color }}>📍 {r.omsu}</span>
+                        {r.smr_pct && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">СГ {r.smr_pct}</span>}
+                        {r.contractor && <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full truncate max-w-[180px]">{r.contractor}</span>}
+                      </div>
+                      {r.comment && <div className="text-xs text-slate-400 mt-1 truncate">{r.comment}</div>}
+                    </div>
+                    <div className="px-4 py-3 flex items-center flex-shrink-0">
+                      <span className="text-base font-black" style={{ color: cfg.color }}>
+                        {fmtMlnN(r.remaining_sum)} млн
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Paid objects tab ──────────────────────────────────────────────────────────
+
+function PaidTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEdit: (r: ClosureObject) => void; canEdit: boolean }) {
+  const [q, setQ] = useState('');
+  const [omsuFilter, setOmsuFilter] = useState('');
+  const [podrFilter, setPodrFilter] = useState('');
+
+  const paid = useMemo(() => data.filter(r => r.payment_status === 'paid'), [data]);
+
+  const omsuOptions = useMemo(() => [...new Set(paid.map(r => r.omsu).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')), [paid]);
+  const podrOptions = useMemo(() => [...new Set(paid.map(r => r.contractor ?? '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')), [paid]);
+
+  const filtered = useMemo(() => {
+    const lq = q.toLowerCase();
+    return paid.filter(r =>
+      (!lq || r.object_name.toLowerCase().includes(lq) || r.omsu.toLowerCase().includes(lq) || (r.contractor ?? '').toLowerCase().includes(lq)) &&
+      (!omsuFilter || r.omsu === omsuFilter) &&
+      (!podrFilter || r.contractor === podrFilter)
+    );
+  }, [paid, q, omsuFilter, podrFilter]);
+
+  const totalContract = paid.reduce((s, r) => s + (r.contract_sum ?? 0), 0);
+  const totalPaid = paid.reduce((s, r) => s + (r.paid_sum ?? 0), 0);
+
+  return (
+    <div className="space-y-5">
+      {/* KPI */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl p-5 shadow-sm border-t-4 border-emerald-400">
+          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Полностью оплачено</div>
+          <div className="text-4xl font-black text-emerald-600">{paid.length}</div>
+        </div>
+        <div className="bg-white rounded-2xl p-5 shadow-sm border-t-4 border-teal-400">
+          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Сумма контрактов</div>
+          <div className="text-2xl font-black text-teal-600">{fmtMoney(totalContract)}</div>
+        </div>
+        <div className="bg-white rounded-2xl p-5 shadow-sm border-t-4 border-emerald-600">
+          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Выплачено</div>
+          <div className="text-2xl font-black text-emerald-600">{fmtMoney(totalPaid)}</div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input value={q} onChange={e => setQ(e.target.value)}
+            placeholder="Поиск…"
+            className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 w-52" />
+        </div>
+        <select value={omsuFilter} onChange={e => setOmsuFilter(e.target.value)}
+          className="py-2 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
+          <option value="">Все ОМСУ</option>
+          {omsuOptions.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <select value={podrFilter} onChange={e => setPodrFilter(e.target.value)}
+          className="py-2 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
+          <option value="">Все подрядчики</option>
+          {podrOptions.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+        {(q || omsuFilter || podrFilter) && (
+          <button onClick={() => { setQ(''); setOmsuFilter(''); setPodrFilter(''); }}
+            className="text-xs text-emerald-600 hover:underline">× Сбросить</button>
+        )}
+        <span className="text-xs text-slate-400 ml-auto">Показано: {filtered.length} из {paid.length}</span>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[900px]">
+            <thead className="bg-emerald-700 text-white uppercase">
+              <tr>
+                <th className="px-3 py-3 text-left font-semibold">#</th>
+                <th className="px-3 py-3 text-left font-semibold">ОМСУ</th>
+                <th className="px-3 py-3 text-left font-semibold">Мероприятие</th>
+                <th className="px-3 py-3 text-left font-semibold">Подрядчик</th>
+                <th className="px-3 py-3 text-center font-semibold">СГ%</th>
+                <th className="px-3 py-3 text-right font-semibold">Сумма контракта, млн</th>
+                <th className="px-3 py-3 text-right font-semibold">Выплачено, млн</th>
+                <th className="px-3 py-3 text-left font-semibold">Комментарий</th>
+                <th className="px-3 py-3 text-left font-semibold">Дата оплаты</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.length === 0 ? (
+                <tr><td colSpan={9} className="text-center py-10 text-slate-400">Нет данных</td></tr>
+              ) : filtered.map((r, i) => (
+                <tr key={r.id}
+                  className={`hover:bg-emerald-50 transition ${canEdit ? 'cursor-pointer' : ''}`}
+                  onClick={() => canEdit && onEdit(r)}>
+                  <td className="px-3 py-2.5 text-slate-400">{i + 1}</td>
+                  <td className="px-3 py-2.5 font-bold text-teal-700 whitespace-nowrap">{r.omsu}</td>
+                  <td className="px-3 py-2.5 text-slate-700 max-w-[220px] leading-snug">{r.object_name}</td>
+                  <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">{r.contractor || '—'}</td>
+                  <td className="px-3 py-2.5 text-center">
+                    {r.smr_pct ? <span className="font-bold text-emerald-700">{r.smr_pct}</span> : '—'}
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{fmtMlnN(r.contract_sum)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-emerald-600 font-semibold">{fmtMlnN(r.paid_sum)}</td>
+                  <td className="px-3 py-2.5 text-slate-500 max-w-[180px] truncate">{r.comment || '—'}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap text-slate-500">
+                    {r.payment_date ? new Date(r.payment_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-type TabId = 'payments' | 'contractors' | 'causes' | 'schedule' | 'dynamics';
+type TabId = 'payments' | 'contractors' | 'causes' | 'top5' | 'paid' | 'schedule' | 'dynamics';
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'payments',    label: 'Оплаты',             icon: <CheckCircle2 size={16} /> },
-  { id: 'contractors', label: 'Подрядчики',          icon: <Building2 size={16} /> },
-  { id: 'causes',      label: 'Причины',             icon: <Layers size={16} /> },
-  { id: 'schedule',    label: 'График оплаты',       icon: <Calendar size={16} /> },
-  { id: 'dynamics',    label: 'Динамика',            icon: <BarChart2 size={16} /> },
+  { id: 'payments',    label: 'Оплаты',         icon: <CheckCircle2 size={16} /> },
+  { id: 'contractors', label: 'Подрядчики',      icon: <Building2 size={16} /> },
+  { id: 'causes',      label: 'Причины',         icon: <Layers size={16} /> },
+  { id: 'top5',        label: 'ТОП-5',           icon: <Trophy size={16} /> },
+  { id: 'paid',        label: 'Оплачены',        icon: <Star size={16} /> },
+  { id: 'schedule',    label: 'График оплаты',   icon: <Calendar size={16} /> },
+  { id: 'dynamics',    label: 'Динамика',        icon: <BarChart2 size={16} /> },
 ];
 
 const MOGAE_ITEMS = [
@@ -748,6 +1130,8 @@ export default function ClosureView() {
 
   useEffect(() => { void load(); void loadChanges(); }, []);
 
+  const handleSaved = () => { void load(); void loadChanges(); };
+
   const latestDate = useMemo(() =>
     data.length ? data.reduce((mx, r) => r.snapshot_date > mx ? r.snapshot_date : mx, data[0].snapshot_date) : '',
   [data]);
@@ -757,57 +1141,62 @@ export default function ClosureView() {
   const agg = useMemo(() => {
     const counts: Record<PaymentStatus, number> = { paid: 0, partial: 0, not_paid: 0, terminated: 0 };
     let contract = 0, paid = 0, remain = 0;
+    const mogaeCounts: Record<string, number> = {};
+    let mogaeRows = 0;
     latest.forEach(r => {
       counts[r.payment_status]++;
       contract += r.contract_sum ?? 0;
       paid += r.paid_sum ?? 0;
       remain += r.remaining_sum ?? 0;
+      if (r.payment_status !== 'paid' && r.payment_status !== 'terminated') {
+        mogaeRows++;
+        const ms = r.mogae_status ?? 'Не указано';
+        mogaeCounts[ms] = (mogaeCounts[ms] ?? 0) + 1;
+      }
     });
-    const mogaeRows = latest.filter(r => r.payment_status === 'not_paid');
-    const mogaeCounts: Record<string, number> = {};
-    mogaeRows.forEach(r => { const k = r.mogae_status ?? 'Не заходили ни разу'; mogaeCounts[k] = (mogaeCounts[k] ?? 0) + 1; });
-    return { total: latest.length, counts, contract, paid, remain, mogaeRows: mogaeRows.length, mogaeCounts };
+    return { total: latest.length, counts, contract, paid, remain, mogaeCounts, mogaeRows };
   }, [latest]);
+
+  const contractPct = (agg.paid / (agg.contract || 1)) * 100;
+  const remainPct   = (agg.remain / (agg.contract || 1)) * 100;
 
   const tableRows = useMemo(() => {
     let rows = latest;
     if (statusFilter) rows = rows.filter(r => r.payment_status === statusFilter);
-    if (mogaeFilter)  rows = rows.filter(r => (r.mogae_status ?? 'Не заходили ни разу') === mogaeFilter);
+    if (mogaeFilter) rows = rows.filter(r => r.mogae_status === mogaeFilter);
     return rows;
   }, [latest, statusFilter, mogaeFilter]);
 
-  const handleSaved = () => { void load(); void loadChanges(); };
-
   if (loading) return (
-    <div className="flex items-center justify-center py-24">
-      <Loader2 className="animate-spin text-teal-500" size={36} />
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="animate-spin text-teal-500" size={40} />
     </div>
   );
 
   if (error) return (
-    <div className="flex items-center gap-3 p-4 bg-[#FFF0F3] border border-[#FFB3BF] rounded-xl text-[#c42d49]">
-      <AlertCircle size={18} /> <span>{error}</span>
-      <button onClick={load} className="ml-auto px-3 py-1 bg-[#FFD6DC] rounded-lg text-xs font-semibold">Повторить</button>
+    <div className="flex items-center gap-3 bg-[#FFF0F3] text-[#E93A58] rounded-2xl p-6 border border-[#FFB3BF]">
+      <AlertCircle size={22} />
+      <div>
+        <p className="font-semibold">Ошибка загрузки данных</p>
+        <p className="text-sm mt-0.5">{error}</p>
+      </div>
     </div>
   );
 
-  const contractPct = agg.contract > 0 ? (agg.paid / agg.contract) * 100 : 0;
-  const remainPct   = agg.contract > 0 ? (agg.remain / agg.contract) * 100 : 0;
-
   return (
-    <div>
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-2xl font-bold text-[#8A4C08]">Закрытие объектов</h2>
-          <p className="text-slate-500 flex items-center gap-2 flex-wrap">
-            Оплаты по объектам теплоэнергетики
-            {latestDate && (
-              <span className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full">
-                Актуально на {new Date(latestDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+          <h2 className="text-2xl font-black text-slate-900">Закрытие объектов</h2>
+          {latestDate && (
+            <p className="text-sm text-slate-500 mt-0.5">
+              Актуальные данные: <span className="font-semibold text-slate-700">
+                {new Date(latestDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
-            )}
-          </p>
+              {' '}·{' '}{latest.length} объектов
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {canEdit && (
@@ -844,7 +1233,7 @@ export default function ClosureView() {
       ) : (
         <>
           {/* Tab bar */}
-          <div className="flex gap-1 bg-white border border-slate-200 rounded-2xl p-1.5 mb-6 w-fit shadow-sm flex-wrap">
+          <div className="flex gap-1 bg-white border border-slate-200 rounded-2xl p-1.5 w-fit shadow-sm flex-wrap">
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition
@@ -860,6 +1249,10 @@ export default function ClosureView() {
           {/* ── TAB: Payments ── */}
           {tab === 'payments' && (
             <div className="space-y-6">
+              {/* Pipeline */}
+              <PipelineSection data={latest} />
+
+              {/* KPI counts */}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <KpiCard label="Всего объектов" value={agg.total} accent="#0f766e" icon={<Layers size={22} />} />
                 {(['paid','partial','not_paid','terminated'] as PaymentStatus[]).map(s => {
@@ -876,12 +1269,14 @@ export default function ClosureView() {
                 })}
               </div>
 
+              {/* Money */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <MoneyCard label="Сумма контрактов" value={fmtMoney(agg.contract)} sub="Общий объём обязательств" pct={100} accent="#0f766e" />
                 <MoneyCard label="Оплачено" value={fmtMoney(agg.paid)} sub={`${contractPct.toFixed(1)}% от суммы контрактов`} pct={contractPct} accent="#059669" />
                 <MoneyCard label="Остаток к оплате" value={fmtMoney(agg.remain)} sub={`${remainPct.toFixed(1)}% от суммы контрактов`} pct={remainPct} accent="#E93A58" />
               </div>
 
+              {/* Donut + МОГЭ */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex items-center gap-8">
                   <DonutChart total={agg.total} segments={[
@@ -931,6 +1326,7 @@ export default function ClosureView() {
                 </div>
               </div>
 
+              {/* Objects table */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                   <h3 className="text-sm font-bold text-[#8A4C08] uppercase tracking-wide">
@@ -955,6 +1351,16 @@ export default function ClosureView() {
           {/* ── TAB: Causes ── */}
           {tab === 'causes' && (
             <CausesTab data={latest} onEdit={setEditRecord} canEdit={canEdit} />
+          )}
+
+          {/* ── TAB: Top-5 ── */}
+          {tab === 'top5' && (
+            <Top5Tab data={latest} onEdit={setEditRecord} canEdit={canEdit} />
+          )}
+
+          {/* ── TAB: Paid ── */}
+          {tab === 'paid' && (
+            <PaidTab data={latest} onEdit={setEditRecord} canEdit={canEdit} />
           )}
 
           {/* ── TAB: Schedule ── */}
@@ -982,7 +1388,7 @@ export default function ClosureView() {
         />
       )}
 
-      {/* История — отдельная панель поверх содержимого */}
+      {/* История — правая панель */}
       {showHistory && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-stretch justify-end"
           onClick={() => setShowHistory(false)}>

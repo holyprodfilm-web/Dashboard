@@ -7,9 +7,10 @@ import type { PaymentStatus, MogaeStatus } from '../types';
 // ── Column auto-detection ─────────────────────────────────────────────────────
 
 type ImportField = 'uin' | 'omsu' | 'object_name' | 'contractor' | 'object_type'
-  | 'mogae_approved' | 'mogae_status' | 'typical_block' | 'smr_completed'
+  | 'mogae_approved' | 'mogae_status' | 'typical_block' | 'smr_completed' | 'smr_pct' | 'id_ks_submitted'
   | 'payment_status' | 'contract_sum' | 'paid_sum' | 'remaining_sum'
-  | 'typical_cause' | 'payment_reason' | 'payment_date' | 'actions' | 'comment' | 'snapshot_date';
+  | 'typical_cause' | 'typical_cause_smr' | 'typical_cause_idks'
+  | 'payment_reason' | 'payment_date' | 'actions' | 'comment' | 'snapshot_date';
 
 const REQUIRED_FIELDS: ImportField[] = ['omsu', 'object_name'];
 
@@ -22,14 +23,18 @@ const COL_DETECT: Array<{ field: ImportField; patterns: string[] }> = [
   { field: 'mogae_approved', patterns: ['одобрено могэ', 'могэ одобрено', 'approved'] },
   { field: 'mogae_status',   patterns: ['статус в могэ', 'статус могэ', 'mogae'] },
   { field: 'payment_date',   patterns: ['дата оплаты', 'плановая дата оплаты', 'крайняя дата оплаты', 'payment_date', 'срок оплаты'] },
-  { field: 'typical_block',  patterns: ['типовой блок', 'блок', 'block'] },
-  { field: 'smr_completed',  patterns: ['смр', 'smr', 'строительно'] },
+  { field: 'typical_block',   patterns: ['типовой блок', 'блок', 'block'] },
+  { field: 'smr_completed',   patterns: ['смр завершен', 'смр выполн', 'smr_completed'] },
+  { field: 'smr_pct',         patterns: ['строительная готовность', 'смр %', 'сг %', 'сг%', 'smr_pct', 'sg_pct'] },
+  { field: 'id_ks_submitted', patterns: ['ид и кс', 'ид/кс', 'исполнительная документация', 'id_ks'] },
   { field: 'payment_status', patterns: ['статус оплаты', 'payment_status', 'оплата статус'] },
   { field: 'contract_sum',   patterns: ['сумма договора', 'договор', 'контракт', 'contract'] },
   { field: 'paid_sum',       patterns: ['оплачено, млн', 'оплачено', 'paid'] },
   { field: 'remaining_sum',  patterns: ['остаток', 'remain', 'задолженность'] },
-  { field: 'typical_cause',  patterns: ['типовая причина', 'причина', 'cause'] },
-  { field: 'payment_reason', patterns: ['причина оплаты', 'payment_reason'] },
+  { field: 'typical_cause',      patterns: ['типовая причина могэ', 'типовая причина', 'причина могэ'] },
+  { field: 'typical_cause_smr',  patterns: ['типовая причина смр', 'причина смр', 'typical_cause_smr'] },
+  { field: 'typical_cause_idks', patterns: ['типовая причина ид', 'типовая причина кс', 'причина ид', 'typical_cause_idks'] },
+  { field: 'payment_reason',     patterns: ['причина оплаты', 'типовая причина оплат', 'payment_reason'] },
   { field: 'actions',        patterns: ['действия', 'action'] },
   { field: 'comment',        patterns: ['комментарий', 'примечание', 'comment'] },
   { field: 'snapshot_date',  patterns: ['дата среза', 'дата', 'date', 'snapshot'] },
@@ -117,6 +122,10 @@ interface ParsedRow {
   paid_sum: number;
   remaining_sum: number;
   typical_cause: string | null;
+  typical_cause_smr: string | null;
+  typical_cause_idks: string | null;
+  smr_pct: string | null;
+  id_ks_submitted: string | null;
   payment_reason: string | null;
   payment_date: string | null;
   actions: string;
@@ -179,7 +188,11 @@ export default function ClosureImportModal({ onClose, onImported }: Props) {
             contract_sum:   contractSum,
             paid_sum:       paidSum,
             remaining_sum:  remainSum,
-            typical_cause:  getStr(row, 'typical_cause') || null,
+            typical_cause:       getStr(row, 'typical_cause') || null,
+            typical_cause_smr:   getStr(row, 'typical_cause_smr') || null,
+            typical_cause_idks:  getStr(row, 'typical_cause_idks') || null,
+            smr_pct:             getStr(row, 'smr_pct') || null,
+            id_ks_submitted:     getStr(row, 'id_ks_submitted') || null,
             payment_reason: getStr(row, 'payment_reason') || null,
             payment_date:   colMap.payment_date
               ? (normalizeDate(row[colMap.payment_date!]) || null)

@@ -7,18 +7,23 @@ import type { ClosureObject, ClosureChange, PaymentStatus, MogaeStatus } from '.
 // ── Field labels for history display ──────────────────────────────────────────
 
 const FIELD_LABELS: Record<string, string> = {
-  payment_status: 'Статус оплаты',
-  mogae_status:   'Статус МОГЭ',
-  contract_sum:   'Сумма договора',
-  paid_sum:       'Оплачено',
-  remaining_sum:  'Остаток',
-  comment:        'Комментарий',
-  smr_completed:  'СМР выполнено',
-  typical_block:  'Блок причин',
-  typical_cause:  'Типичная причина',
-  payment_reason: 'Обоснование',
-  payment_date:   'Дата оплаты',
-  actions:        'Действия',
+  payment_status:     'Статус оплаты',
+  mogae_approved:     'МОГЭ одобрено',
+  mogae_status:       'Статус МОГЭ',
+  contract_sum:       'Сумма договора',
+  paid_sum:           'Оплачено',
+  remaining_sum:      'Остаток',
+  comment:            'Комментарий',
+  smr_completed:      'СМР завершено',
+  smr_pct:            'СГ%',
+  id_ks_submitted:    'ИД и КС сданы',
+  typical_block:      'Блок причин',
+  typical_cause:      'Причина МОГЭ',
+  typical_cause_smr:  'Причина СМР',
+  typical_cause_idks: 'Причина ИД/КС',
+  payment_reason:     'Обоснование оплаты',
+  payment_date:       'Дата оплаты',
+  actions:            'Действия',
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -61,6 +66,7 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
 
   // Editable field state (sums stored as mln strings for the input)
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(record.payment_status);
+  const [mogaeApproved, setMogaeApproved] = useState(record.mogae_approved ?? '');
   const [mogaeStatus, setMogaeStatus]     = useState<MogaeStatus | ''>(record.mogae_status ?? '');
   const [contractMln, setContractMln]     = useState(fmtMlnInput(record.contract_sum));
   const [paidMln, setPaidMln]             = useState(fmtMlnInput(record.paid_sum));
@@ -68,8 +74,12 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
   const [autoRemain, setAutoRemain]       = useState(false);
   const [comment, setComment]             = useState(record.comment ?? '');
   const [smr, setSmr]                     = useState(record.smr_completed ?? '');
+  const [smrPct, setSmrPct]               = useState(record.smr_pct ?? '');
+  const [idKs, setIdKs]                   = useState(record.id_ks_submitted ?? '');
   const [typicalBlock, setTypicalBlock]   = useState(record.typical_block ?? '');
   const [cause, setCause]                 = useState(record.typical_cause ?? '');
+  const [causeSmr, setCauseSmr]           = useState(record.typical_cause_smr ?? '');
+  const [causeIdks, setCauseIdks]         = useState(record.typical_cause_idks ?? '');
   const [paymentReason, setPaymentReason] = useState(record.payment_reason ?? '');
   const [paymentDate, setPaymentDate]     = useState(record.payment_date ?? '');
   const [actions, setActions]             = useState(record.actions ?? '');
@@ -107,15 +117,20 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
     setSaveErr('');
 
     const updates: Partial<ClosureObject> = {
-      payment_status: paymentStatus,
-      mogae_status:   mogaeStatus || null,
+      payment_status:  paymentStatus,
+      mogae_approved:  mogaeApproved || null,
+      mogae_status:    mogaeStatus || null,
       contract_sum:   parseMln(contractMln),
       paid_sum:       parseMln(paidMln),
       remaining_sum:  parseMln(remainMln),
       comment,
-      smr_completed:  smr || null,
-      typical_block:  typicalBlock || null,
-      typical_cause:  cause || null,
+      smr_completed:     smr || null,
+      smr_pct:           smrPct || null,
+      id_ks_submitted:   idKs || null,
+      typical_block:     typicalBlock || null,
+      typical_cause:     cause || null,
+      typical_cause_smr:  causeSmr || null,
+      typical_cause_idks: causeIdks || null,
       payment_reason: paymentReason || null,
       payment_date:   paymentDate || null,
       actions,
@@ -131,17 +146,22 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
     };
 
     checkField('payment_status', record.payment_status, updates.payment_status);
+    checkField('mogae_approved', record.mogae_approved, updates.mogae_approved);
     checkField('mogae_status',   record.mogae_status,   updates.mogae_status);
     checkField('contract_sum',   record.contract_sum,   updates.contract_sum);
     checkField('paid_sum',       record.paid_sum,       updates.paid_sum);
     checkField('remaining_sum',  record.remaining_sum,  updates.remaining_sum);
     checkField('comment',        record.comment,        updates.comment);
-    checkField('smr_completed',  record.smr_completed,  updates.smr_completed);
-    checkField('typical_block',  record.typical_block,  updates.typical_block);
-    checkField('typical_cause',  record.typical_cause,  updates.typical_cause);
-    checkField('payment_reason', record.payment_reason, updates.payment_reason);
-    checkField('payment_date',   record.payment_date,   updates.payment_date);
-    checkField('actions',        record.actions,        updates.actions);
+    checkField('smr_completed',     record.smr_completed,     updates.smr_completed);
+    checkField('smr_pct',           record.smr_pct,           updates.smr_pct);
+    checkField('id_ks_submitted',   record.id_ks_submitted,   updates.id_ks_submitted);
+    checkField('typical_block',     record.typical_block,     updates.typical_block);
+    checkField('typical_cause',     record.typical_cause,     updates.typical_cause);
+    checkField('typical_cause_smr',  record.typical_cause_smr,  updates.typical_cause_smr);
+    checkField('typical_cause_idks', record.typical_cause_idks, updates.typical_cause_idks);
+    checkField('payment_reason',    record.payment_reason,    updates.payment_reason);
+    checkField('payment_date',      record.payment_date,      updates.payment_date);
+    checkField('actions',           record.actions,           updates.actions);
 
     if (changedFields.length === 0) { setSaving(false); onClose(); return; }
 
@@ -220,25 +240,49 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          {/* МОГЭ status */}
+          {/* МОГЭ approved + status */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-              Статус МОГЭ
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              📋 МОГЭ — Контрольная точка 1
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              {MOGAE_OPTIONS.map(o => (
-                <button
-                  key={o.value}
-                  onClick={() => setMogaeStatus(mogaeStatus === o.value ? '' : o.value)}
-                  className={`py-2 px-3 rounded-xl border-2 text-xs font-medium transition text-left ${
-                    mogaeStatus === o.value
-                      ? 'border-teal-500 bg-teal-50 text-teal-700'
-                      : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                  }`}
-                >
-                  {o.label}
-                </button>
-              ))}
+            <div className="space-y-2 p-3 bg-red-50 rounded-xl border border-red-100">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Положительное заключение получено</label>
+                <div className="flex gap-2">
+                  {['Да', 'Нет', ''].map(v => (
+                    <button key={v}
+                      onClick={() => setMogaeApproved(v)}
+                      className={`py-1.5 px-4 rounded-xl border-2 text-xs font-semibold transition ${
+                        mogaeApproved === v
+                          ? v === 'Да' ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          : v === 'Нет' ? 'border-red-400 bg-red-50 text-red-700'
+                          : 'border-slate-400 bg-slate-100 text-slate-500'
+                          : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      {v === '' ? '— Не указано' : v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Статус захода в МОГЭ</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {MOGAE_OPTIONS.map(o => (
+                    <button
+                      key={o.value}
+                      onClick={() => setMogaeStatus(mogaeStatus === o.value ? '' : o.value)}
+                      className={`py-2 px-3 rounded-xl border-2 text-xs font-medium transition text-left ${
+                        mogaeStatus === o.value
+                          ? 'border-teal-500 bg-teal-50 text-teal-700'
+                          : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -320,18 +364,75 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
               className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
             />
           </div>
-          {/* Extra fields */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">СМР завершено</label>
-              <input value={smr} onChange={e => setSmr(e.target.value)} placeholder="Дата или статус"
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+          {/* Checkpoints section */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              Контрольные точки
+            </label>
+            <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              {/* СМР */}
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">🏗️ СМР завершено</label>
+                <select value={smr} onChange={e => setSmr(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white">
+                  <option value="">— Не указано</option>
+                  <option value="Да">Да</option>
+                  <option value="Нет">Нет</option>
+                </select>
+              </div>
+              {/* СГ% */}
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">📊 Строительная готовность, %</label>
+                <input value={smrPct} onChange={e => setSmrPct(e.target.value)}
+                  placeholder="Напр.: 85%"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+              </div>
+              {/* ИД/КС */}
+              <div className="col-span-2">
+                <label className="block text-xs text-slate-500 mb-1">📁 ИД и КС сданы в УТНКР</label>
+                <select value={idKs} onChange={e => setIdKs(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white">
+                  <option value="">— Не указано</option>
+                  <option value="Да">Да</option>
+                  <option value="Нет">Нет</option>
+                  <option value="Частично">Частично</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Действия</label>
-              <input value={actions} onChange={e => setActions(e.target.value)} placeholder="Принятые меры"
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+          </div>
+
+          {/* Causes by block */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              Типовые причины по блокам
+            </label>
+            <div className="space-y-2">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">📋 Блок 1 — Причина по МОГЭ</label>
+                <input value={cause} onChange={e => setCause(e.target.value)}
+                  placeholder="Уточнение причины по МОГЭ"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">🏗️ Блок 2 — Причина по СМР</label>
+                <input value={causeSmr} onChange={e => setCauseSmr(e.target.value)}
+                  placeholder="Уточнение причины по СМР"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">📁 Блок 3 — Причина по ИД и КС</label>
+                <input value={causeIdks} onChange={e => setCauseIdks(e.target.value)}
+                  placeholder="Уточнение причины по ИД/КС"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+              </div>
             </div>
+          </div>
+
+          {/* Actions */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Действия</label>
+            <input value={actions} onChange={e => setActions(e.target.value)} placeholder="Принятые меры"
+              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
           </div>
 
           {saveErr && (
