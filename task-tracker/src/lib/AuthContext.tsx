@@ -56,6 +56,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_OUT') {
         localStorage.removeItem('objectsSearch');
         localStorage.removeItem('objectsLocalStatusFilter');
+        localStorage.removeItem('lastUserId');
+      }
+      if (event === 'SIGNED_IN' && session?.user) {
+        const lastUserId = localStorage.getItem('lastUserId');
+        if (lastUserId && lastUserId !== session.user.id) {
+          localStorage.removeItem('objectsSearch');
+          localStorage.removeItem('objectsLocalStatusFilter');
+        }
+        localStorage.setItem('lastUserId', session.user.id);
       }
       setSession(session);
       setUser(session?.user ?? null);
