@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AuthProvider, useAuth } from './lib/AuthContext';
-import { Home, Target, Loader2, LogOut, AlertCircle } from 'lucide-react';
+import { Home, Target, Loader2, LogOut, AlertCircle, UserCircle } from 'lucide-react';
 import UserProfileModal from './components/UserProfileModal';
 import type { View, Meeting, Task, Address, Profile } from './types';
 import { ROLE_LABELS, ROLE_COLORS } from './types';
