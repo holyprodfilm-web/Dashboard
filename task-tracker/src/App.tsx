@@ -174,6 +174,9 @@ function AppContent() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'profiles' },
         (payload) => {
+          if (payload.eventType === 'UPDATE' && user && (payload.new as Profile).id === user.id) {
+            void reloadProfile();
+          }
           setProfiles((prev) => {
             if (payload.eventType === 'INSERT') {
               return [...prev, payload.new as Profile];
