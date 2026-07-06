@@ -420,6 +420,7 @@ function AppContent() {
         <Toast
           message="Данные обновлены"
           onClose={() => setShowReconnectToast(false)}
+          persistent
         />
       )}
     </div>

@@ -5,9 +5,10 @@ interface ToastProps {
   message: string;
   duration?: number;
   onClose: () => void;
+  persistent?: boolean;
 }
 
-export default function Toast({ message, duration = 3000, onClose }: ToastProps) {
+export default function Toast({ message, duration = 3000, onClose, persistent = false }: ToastProps) {
   const [visible, setVisible] = useState(false);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -20,17 +21,20 @@ export default function Toast({ message, duration = 3000, onClose }: ToastProps)
   useEffect(() => {
     // Trigger enter animation
     const enterTimer = setTimeout(() => setVisible(true), 10);
-    // Start exit animation
-    const exitTimer = setTimeout(() => setVisible(false), duration - 300);
-    // Unmount after exit animation
-    const closeTimer = setTimeout(() => onClose(), duration);
+    timersRef.current = [enterTimer];
 
-    timersRef.current = [enterTimer, exitTimer, closeTimer];
+    if (!persistent) {
+      // Start exit animation
+      const exitTimer = setTimeout(() => setVisible(false), duration - 300);
+      // Unmount after exit animation
+      const closeTimer = setTimeout(() => onClose(), duration);
+      timersRef.current = [enterTimer, exitTimer, closeTimer];
+    }
 
     return () => {
       timersRef.current.forEach(clearTimeout);
     };
-  }, [duration, onClose]);
+  }, [duration, onClose, persistent]);
 
   return (
     <div
