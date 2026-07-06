@@ -1,4 +1,25 @@
-export type View = 'home' | 'dashboard' | 'managerTasks' | 'objects' | 'detail' | 'users';
+export type View = 'home' | 'dashboard' | 'managerTasks' | 'objects' | 'detail' | 'users' | 'closure';
+
+export type PaymentStatus = 'paid' | 'partial' | 'not_paid' | 'terminated';
+export type MogaeStatus = 'Заходили' | 'В МОГЭ' | 'Не заходили ни разу';
+
+export interface ClosureObject {
+  id: number;
+  omsu: string;
+  object_name: string;
+  contractor: string;
+  payment_status: PaymentStatus;
+  contract_sum: number;
+  paid_sum: number;
+  remaining_sum: number;
+  mogae_status: MogaeStatus | null;
+  typical_cause: string | null;
+  typical_block: string | null;
+  comment: string;
+  actions: string;
+  snapshot_date: string;
+  created_at?: string;
+}
 
 export type TaskStatus = 'new' | 'in_progress' | 'completed' | 'overdue';
 

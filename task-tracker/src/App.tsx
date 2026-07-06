@@ -14,6 +14,7 @@ import HomePage from './components/HomePage';
 import ManagerTasksView from './components/ManagerTasksView';
 import UsersView from './components/UsersView';
 import BootstrapAdminBanner from './components/BootstrapAdminBanner';
+import ClosureView from './components/ClosureView';
 
 function AppContent() {
   const { user, profile, loading, signOut, reloadProfile } = useAuth();
@@ -313,10 +314,11 @@ function AppContent() {
 
         {view === 'home' && (
           <HomePage
-            onNavigate={(newView) => setView(newView)}
+            onNavigate={(newView) => setView(newView as View)}
             isAdmin={profile?.role === 'admin'}
           />
         )}
+        {view === 'closure' && <ClosureView />}
         {view === 'dashboard' && (
           <DashboardWrapper
             meetings={visibleMeetings}
