@@ -45,3 +45,4 @@ timeoutMs = 60000
 deploymentTarget = "static"
 build = ["npm", "--prefix", "task-tracker", "run", "build"]
 publicDir = "task-tracker/dist"
+run = ["node", "task-tracker/scripts/backup.cjs"]
