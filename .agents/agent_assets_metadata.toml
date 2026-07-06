@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "86WpVobTksSM0RsUyogPZ"
+uri = "file://attached_assets/closure_objects.csv"
+type = "table"
+title = "closure_objects.csv — 500 объектов"
