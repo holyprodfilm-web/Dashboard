@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Upload, X, CheckCircle, AlertCircle, Loader2, FileText, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { usePermissions } from '../lib/usePermissions';
 import type { Address } from '../types';
 
 interface AddressUploadModalProps {
@@ -44,6 +45,7 @@ function parseCSV(text: string): string[][] {
 }
 
 export default function AddressUploadModal({ onClose, onUploaded }: AddressUploadModalProps) {
+  const { isAdmin } = usePermissions();
   const [preview, setPreview] = useState<Address[] | null>(null);
   const [parseError, setParseError] = useState('');
   const [fileName, setFileName] = useState('');
@@ -107,6 +109,10 @@ export default function AddressUploadModal({ onClose, onUploaded }: AddressUploa
 
   const handleUpload = async () => {
     if (!preview) return;
+    if (!isAdmin) {
+      setUploadError('Только администраторы могут загружать объекты.');
+      return;
+    }
     setUploading(true);
     setUploadError('');
 
