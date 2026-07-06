@@ -119,6 +119,13 @@ function AppContent() {
                   </div>
                 </div>
                 <button
+                  onClick={() => setShowProfile(true)}
+                  className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition"
+                  title="Личный кабинет"
+                >
+                  <UserCircle size={20} />
+                </button>
+                <button
                   onClick={signOut}
                   className="p-2 text-slate-400 hover:text-[#E93A58] hover:bg-[#FFF0F3] rounded-lg transition"
                   title="Выйти"
