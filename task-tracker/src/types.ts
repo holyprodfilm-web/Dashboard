@@ -92,6 +92,18 @@ export interface TaskLink {
   created_at?: string;
 }
 
+export interface ClosureChange {
+  id: number;
+  object_id: number;
+  user_id: string;
+  user_name: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_at: string;
+  closure_objects?: { object_name: string; omsu: string } | null;
+}
+
 export const ROLE_LABELS: Record<string, string> = {
   admin:   'Администратор',
   manager: 'Руководитель проекта',

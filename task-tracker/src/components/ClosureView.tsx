@@ -2,12 +2,15 @@ import { useState, useEffect, useMemo, Fragment } from 'react';
 import {
   Loader2, AlertCircle, CheckCircle2, Clock3, XCircle, MinusCircle,
   Building2, ChevronDown, ChevronUp, Search, RefreshCw, TrendingUp,
-  BarChart2, AlertTriangle, Layers,
+  BarChart2, AlertTriangle, Layers, Pencil, Upload, History,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { ClosureObject, PaymentStatus } from '../types';
+import { useAuth } from '../lib/AuthContext';
+import type { ClosureObject, ClosureChange, PaymentStatus } from '../types';
+import ClosureEditModal from './ClosureEditModal';
+import ClosureImportModal from './ClosureImportModal';
 
-// ─── constants ───────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const PAYMENT_CFG: Record<PaymentStatus, { label: string; color: string; bg: string; border: string; accent: string }> = {
   paid:       { label: 'Оплачено полностью', color: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200', accent: '#059669' },
@@ -16,20 +19,32 @@ const PAYMENT_CFG: Record<PaymentStatus, { label: string; color: string; bg: str
   terminated: { label: 'Расторгнуто',        color: 'text-slate-500',   bg: 'bg-slate-100',   border: 'border-slate-200',   accent: '#94a3b8' },
 };
 
-const fmtBln = (v: number) => (v / 1e9).toFixed(2).replace('.', ',') + ' млрд ₽';
-const fmtMln = (v: number) => (v / 1e6).toFixed(1).replace('.', ',') + ' млн ₽';
-const fmtMoney = (v: number) => (v >= 1e9 ? fmtBln(v) : fmtMln(v));
+const FIELD_LABELS: Record<string, string> = {
+  payment_status: 'Статус оплаты',
+  mogae_status:   'Статус МОГЭ',
+  contract_sum:   'Сумма договора',
+  paid_sum:       'Оплачено',
+  remaining_sum:  'Остаток',
+  comment:        'Комментарий',
+  smr_completed:  'СМР выполнено',
+  typical_cause:  'Причина',
+  actions:        'Действия',
+};
+
+const fmtBln  = (v: number) => (v / 1e9).toFixed(2).replace('.', ',') + ' млрд ₽';
+const fmtMln  = (v: number) => (v / 1e6).toFixed(1).replace('.', ',') + ' млн ₽';
+const fmtMoney= (v: number) => (v >= 1e9 ? fmtBln(v) : fmtMln(v));
 const fmtMlnN = (v: number | null | undefined) =>
   !v || isNaN(v) ? '—' : (v / 1e6).toFixed(2).replace('.', ',');
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-// ─── Donut chart (pure SVG) ───────────────────────────────────────────────────
+// ── Donut chart ───────────────────────────────────────────────────────────────
 
 interface DonutSegment { label: string; n: number; color: string }
 function DonutChart({ segments, total }: { segments: DonutSegment[]; total: number }) {
   const cx = 74, cy = 74, R = 62, ri = 42;
   const active = segments.filter(s => s.n > 0);
-
-  // Special case: single segment fills 100% — arc start === end, SVG degenerate
   if (active.length === 1) {
     return (
       <svg viewBox="0 0 148 148" className="w-36 h-36">
@@ -40,7 +55,6 @@ function DonutChart({ segments, total }: { segments: DonutSegment[]; total: numb
       </svg>
     );
   }
-
   let ang = -Math.PI / 2;
   const paths: { d: string; color: string }[] = [];
   active.forEach(s => {
@@ -58,24 +72,21 @@ function DonutChart({ segments, total }: { segments: DonutSegment[]; total: numb
   });
   return (
     <svg viewBox="0 0 148 148" className="w-36 h-36">
-      {paths.map((p, i) => (
-        <path key={i} d={p.d} fill={p.color} stroke="#fff" strokeWidth="2.5" />
-      ))}
+      {paths.map((p, i) => <path key={i} d={p.d} fill={p.color} stroke="#fff" strokeWidth="2.5" />)}
       <text x="74" y="70" textAnchor="middle" fontSize="22" fontWeight="800" fill="#1e293b">{total}</text>
       <text x="74" y="86" textAnchor="middle" fontSize="10" fill="#94a3b8">объектов</text>
     </svg>
   );
 }
 
-// ─── KPI card ─────────────────────────────────────────────────────────────────
+// ── KPI card ──────────────────────────────────────────────────────────────────
 
 function KpiCard({ label, value, sub, icon, accent, onClick, active }: {
   label: string; value: number; sub?: string; icon: React.ReactNode;
   accent: string; onClick?: () => void; active?: boolean;
 }) {
   return (
-    <button
-      onClick={onClick}
+    <button onClick={onClick}
       className={`w-full text-left bg-white rounded-2xl p-5 border-t-4 shadow-sm transition
         ${active ? 'ring-2 ring-offset-1' : 'hover:shadow-md'}`}
       style={{ borderTopColor: accent, ['--tw-ring-color' as string]: accent }}
@@ -92,7 +103,7 @@ function KpiCard({ label, value, sub, icon, accent, onClick, active }: {
   );
 }
 
-// ─── Money card ───────────────────────────────────────────────────────────────
+// ── Money card ────────────────────────────────────────────────────────────────
 
 function MoneyCard({ label: lbl, value, sub, pct, accent }: {
   label: string; value: string; sub: string; pct: number; accent: string;
@@ -109,9 +120,17 @@ function MoneyCard({ label: lbl, value, sub, pct, accent }: {
   );
 }
 
-// ─── Objects table ────────────────────────────────────────────────────────────
+// ── Objects table (with inline edit) ─────────────────────────────────────────
 
-function ObjectsTable({ rows }: { rows: ClosureObject[] }) {
+function ObjectsTable({
+  rows,
+  onEdit,
+  canEdit = false,
+}: {
+  rows: ClosureObject[];
+  onEdit?: (r: ClosureObject) => void;
+  canEdit?: boolean;
+}) {
   const [q, setQ] = useState('');
   const filtered = useMemo(() => {
     const lq = q.toLowerCase();
@@ -127,16 +146,14 @@ function ObjectsTable({ rows }: { rows: ClosureObject[] }) {
       <div className="flex items-center gap-3 mb-3">
         <div className="relative flex-1 max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            value={q} onChange={e => setQ(e.target.value)}
+          <input value={q} onChange={e => setQ(e.target.value)}
             placeholder="Поиск по объекту, ОМСУ, подрядчику…"
-            className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400"
-          />
+            className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400" />
         </div>
         <span className="text-xs text-slate-400">{filtered.length} из {rows.length}</span>
       </div>
       <div className="overflow-x-auto rounded-xl border border-slate-200">
-        <table className="w-full text-xs min-w-[1020px]">
+        <table className="w-full text-xs min-w-[1060px]">
           <thead className="bg-slate-50 text-slate-600 uppercase">
             <tr>
               <th className="px-3 py-2 text-left font-semibold w-6">#</th>
@@ -150,15 +167,19 @@ function ObjectsTable({ rows }: { rows: ClosureObject[] }) {
               <th className="px-3 py-2 text-right font-semibold">Остаток, млн</th>
               <th className="px-3 py-2 text-left font-semibold">МОГЭ</th>
               <th className="px-3 py-2 text-left font-semibold">СМР</th>
+              {canEdit && <th className="px-3 py-2 w-8" />}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 ? (
-              <tr><td colSpan={11} className="text-center py-10 text-slate-400">Нет данных</td></tr>
+              <tr><td colSpan={canEdit ? 12 : 11} className="text-center py-10 text-slate-400">Нет данных</td></tr>
             ) : filtered.map((r, i) => {
               const cfg = PAYMENT_CFG[r.payment_status];
               return (
-                <tr key={r.id} className="hover:bg-slate-50 transition">
+                <tr key={r.id}
+                  className={`transition group ${canEdit ? 'hover:bg-teal-50 cursor-pointer' : 'hover:bg-slate-50'}`}
+                  onClick={() => canEdit && onEdit?.(r)}
+                >
                   <td className="px-3 py-2 text-slate-400">{i + 1}</td>
                   <td className="px-3 py-2 font-semibold text-[#8A4C08] whitespace-nowrap">{r.omsu}</td>
                   <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{r.object_type ?? '—'}</td>
@@ -174,6 +195,17 @@ function ObjectsTable({ rows }: { rows: ClosureObject[] }) {
                   <td className="px-3 py-2 text-right tabular-nums text-[#E93A58]">{fmtMlnN(r.remaining_sum)}</td>
                   <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{r.mogae_status ?? '—'}</td>
                   <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{r.smr_completed ?? '—'}</td>
+                  {canEdit && (
+                    <td className="px-3 py-2">
+                      <button
+                        onClick={e => { e.stopPropagation(); onEdit?.(r); }}
+                        className="p-1 text-slate-300 group-hover:text-teal-600 hover:bg-teal-100 rounded-lg transition"
+                        title="Редактировать"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -184,7 +216,7 @@ function ObjectsTable({ rows }: { rows: ClosureObject[] }) {
   );
 }
 
-// ─── Contractors tab ──────────────────────────────────────────────────────────
+// ── Contractors tab ───────────────────────────────────────────────────────────
 
 interface ContrRow {
   name: string; total: number; paid: number; partial: number;
@@ -192,7 +224,7 @@ interface ContrRow {
   objects: ClosureObject[];
 }
 
-function ContractorsTab({ data }: { data: ClosureObject[] }) {
+function ContractorsTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEdit: (r: ClosureObject) => void; canEdit: boolean }) {
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [sort, setSort] = useState<{ key: keyof ContrRow; dir: 1 | -1 }>({ key: 'not_paid', dir: -1 });
 
@@ -233,10 +265,8 @@ function ContractorsTab({ data }: { data: ClosureObject[] }) {
           <tbody className="divide-y divide-slate-100">
             {rows.map(r => (
               <Fragment key={r.name}>
-                <tr
-                  className="hover:bg-teal-50 cursor-pointer transition"
-                  onClick={() => setOpenRow(openRow === r.name ? null : r.name)}
-                >
+                <tr className="hover:bg-teal-50 cursor-pointer transition"
+                  onClick={() => setOpenRow(openRow === r.name ? null : r.name)}>
                   <td className="px-4 py-3 font-semibold text-teal-700 flex items-center gap-2">
                     {openRow === r.name ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     {r.name}
@@ -252,7 +282,7 @@ function ContractorsTab({ data }: { data: ClosureObject[] }) {
                 {openRow === r.name && (
                   <tr>
                     <td colSpan={8} className="bg-slate-50 px-6 py-4">
-                      <ObjectsTable rows={r.objects} />
+                      <ObjectsTable rows={r.objects} onEdit={onEdit} canEdit={canEdit} />
                     </td>
                   </tr>
                 )}
@@ -265,12 +295,11 @@ function ContractorsTab({ data }: { data: ClosureObject[] }) {
   );
 }
 
-// ─── Causes tab ───────────────────────────────────────────────────────────────
+// ── Causes tab ────────────────────────────────────────────────────────────────
 
-function CausesTab({ data }: { data: ClosureObject[] }) {
+function CausesTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEdit: (r: ClosureObject) => void; canEdit: boolean }) {
   const [openCause, setOpenCause] = useState<string | null>(null);
 
-  // Group by block → cause
   const blocks = useMemo(() => {
     const bmap: Record<string, Record<string, ClosureObject[]>> = {};
     data.forEach(r => {
@@ -293,9 +322,8 @@ function CausesTab({ data }: { data: ClosureObject[] }) {
 
   const blockColors = ['#E97386','#EFA566','#059669','#6366f1','#d97706','#0891b2'];
 
-  if (blocks.length === 0) {
+  if (blocks.length === 0)
     return <div className="text-center text-slate-400 py-16">Данных о причинах нет</div>;
-  }
 
   return (
     <div className="space-y-4">
@@ -303,12 +331,9 @@ function CausesTab({ data }: { data: ClosureObject[] }) {
         const color = blockColors[bi % blockColors.length];
         return (
           <div key={blk} className="rounded-2xl overflow-hidden shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between px-6 py-4 text-white"
-              style={{ background: color }}>
+            <div className="flex items-center justify-between px-6 py-4 text-white" style={{ background: color }}>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-white/25 flex items-center justify-center font-black text-sm">
-                  {bi + 1}
-                </div>
+                <div className="w-8 h-8 rounded-full bg-white/25 flex items-center justify-center font-black text-sm">{bi + 1}</div>
                 <span className="font-bold text-base">{blk}</span>
               </div>
               <span className="bg-white/20 rounded-full px-4 py-1 font-bold">{total} объектов</span>
@@ -334,7 +359,7 @@ function CausesTab({ data }: { data: ClosureObject[] }) {
                     </div>
                     {open && (
                       <div className="mt-1 mb-2 border border-slate-200 rounded-xl overflow-hidden">
-                        <ObjectsTable rows={rows} />
+                        <ObjectsTable rows={rows} onEdit={onEdit} canEdit={canEdit} />
                       </div>
                     )}
                   </div>
@@ -348,7 +373,7 @@ function CausesTab({ data }: { data: ClosureObject[] }) {
   );
 }
 
-// ─── Dynamics tab ─────────────────────────────────────────────────────────────
+// ── Dynamics tab ──────────────────────────────────────────────────────────────
 
 function DynamicsTab({ data }: { data: ClosureObject[] }) {
   const snapshots = useMemo(() => {
@@ -369,9 +394,8 @@ function DynamicsTab({ data }: { data: ClosureObject[] }) {
     }));
   }, [data]);
 
-  if (snapshots.length === 0) {
+  if (snapshots.length === 0)
     return <div className="text-center text-slate-400 py-16">Нет данных о срезах. Добавьте объекты с разными датами snapshot_date.</div>;
-  }
 
   const maxTotal = Math.max(1, ...snapshots.map(s => s.total));
   const last = snapshots[snapshots.length - 1];
@@ -379,7 +403,6 @@ function DynamicsTab({ data }: { data: ClosureObject[] }) {
 
   return (
     <div className="space-y-6">
-      {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-5 shadow-sm border-t-4 border-emerald-400">
           <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Оплачено на {last.label}</div>
@@ -400,25 +423,17 @@ function DynamicsTab({ data }: { data: ClosureObject[] }) {
         </div>
       </div>
 
-      {/* Bar chart */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-        <h3 className="text-sm font-bold text-[#8A4C08] uppercase tracking-wide mb-5">
-          Динамика оплаты по срезам
-        </h3>
+        <h3 className="text-sm font-bold text-[#8A4C08] uppercase tracking-wide mb-5">Динамика оплаты по срезам</h3>
         <div className="overflow-x-auto">
           <div className="flex items-end gap-4 min-w-max pb-2" style={{ height: 200 }}>
             {snapshots.map(s => {
               const barH = Math.max(8, Math.round((s.paid / maxTotal) * 160));
               return (
                 <div key={s.date} className="flex flex-col items-center gap-1 group cursor-default">
-                  <div className="text-xs font-bold text-emerald-600 opacity-0 group-hover:opacity-100 transition">
-                    {s.paid}
-                  </div>
-                  <div
-                    className="w-14 rounded-t-lg transition-all"
-                    style={{ height: barH, background: '#059669' }}
-                    title={`${s.label}: ${s.paid} оплачено из ${s.total}`}
-                  />
+                  <div className="text-xs font-bold text-emerald-600 opacity-0 group-hover:opacity-100 transition">{s.paid}</div>
+                  <div className="w-14 rounded-t-lg transition-all" style={{ height: barH, background: '#059669' }}
+                    title={`${s.label}: ${s.paid} оплачено из ${s.total}`} />
                   <div className="text-xs text-slate-500 text-center whitespace-nowrap">{s.label}</div>
                   <div className="text-xs font-semibold text-emerald-600">{s.paidPct}%</div>
                 </div>
@@ -428,7 +443,6 @@ function DynamicsTab({ data }: { data: ClosureObject[] }) {
         </div>
       </div>
 
-      {/* Snapshot table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-xs text-slate-600 uppercase">
@@ -466,24 +480,104 @@ function DynamicsTab({ data }: { data: ClosureObject[] }) {
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ── History tab ───────────────────────────────────────────────────────────────
 
-type TabId = 'payments' | 'contractors' | 'causes' | 'dynamics';
+function HistoryTab({ changes, loading }: { changes: ClosureChange[]; loading: boolean }) {
+  if (loading) return (
+    <div className="flex items-center justify-center py-24">
+      <Loader2 className="animate-spin text-teal-500" size={32} />
+    </div>
+  );
+  if (changes.length === 0) return (
+    <div className="text-center py-16 text-slate-400">
+      <History size={40} className="mx-auto mb-3 opacity-30" />
+      <p className="font-medium">История изменений пуста</p>
+      <p className="text-sm mt-1">Изменения появятся здесь после редактирования объектов</p>
+    </div>
+  );
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 text-xs text-slate-600 uppercase">
+          <tr>
+            <th className="px-5 py-3 text-left font-semibold">Дата и время</th>
+            <th className="px-5 py-3 text-left font-semibold">Объект</th>
+            <th className="px-5 py-3 text-left font-semibold">Поле</th>
+            <th className="px-5 py-3 text-left font-semibold">Было</th>
+            <th className="px-5 py-3 text-left font-semibold">Стало</th>
+            <th className="px-5 py-3 text-left font-semibold">Пользователь</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {changes.map(h => {
+            const isStatus = h.field_name === 'payment_status';
+            const fmtVal = (v: string | null) => {
+              if (!v) return <span className="text-slate-300">—</span>;
+              if (isStatus) {
+                const cfg = PAYMENT_CFG[v as PaymentStatus];
+                return cfg
+                  ? <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
+                  : <span>{v}</span>;
+              }
+              return <span className="text-slate-700">{v}</span>;
+            };
+            return (
+              <tr key={h.id} className="hover:bg-slate-50">
+                <td className="px-5 py-3 text-slate-500 whitespace-nowrap text-xs">{fmtDate(h.changed_at)}</td>
+                <td className="px-5 py-3">
+                  <div className="font-medium text-slate-800 text-xs leading-snug max-w-[200px] truncate">
+                    {h.closure_objects?.object_name ?? `#${h.object_id}`}
+                  </div>
+                  <div className="text-[10px] text-[#8A4C08] font-medium">{h.closure_objects?.omsu}</div>
+                </td>
+                <td className="px-5 py-3 text-xs font-semibold text-slate-500">
+                  {FIELD_LABELS[h.field_name] ?? h.field_name}
+                </td>
+                <td className="px-5 py-3 text-xs">{fmtVal(h.old_value)}</td>
+                <td className="px-5 py-3 text-xs">{fmtVal(h.new_value)}</td>
+                <td className="px-5 py-3 text-xs text-slate-500">{h.user_name}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+type TabId = 'payments' | 'contractors' | 'causes' | 'history' | 'dynamics';
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'payments',    label: 'Оплаты',            icon: <CheckCircle2 size={16} /> },
   { id: 'contractors', label: 'Подрядчики',         icon: <Building2 size={16} /> },
-  { id: 'causes',      label: 'Типичные причины',   icon: <Layers size={16} /> },
+  { id: 'causes',      label: 'Причины',            icon: <Layers size={16} /> },
+  { id: 'history',     label: 'История',            icon: <History size={16} /> },
   { id: 'dynamics',    label: 'Динамика',           icon: <BarChart2 size={16} /> },
 ];
 
+const MOGAE_ITEMS = [
+  { key: 'Заходили',            label: '🔄 Заходили в МОГЭ',     sub: 'Были ранее, не прошли',  color: '#d97706', bg: 'bg-amber-50',  border: 'border-amber-200' },
+  { key: 'В МОГЭ',              label: '⏳ Находятся в МОГЭ',    sub: 'Сейчас на рассмотрении', color: '#1a6fba', bg: 'bg-blue-50',   border: 'border-blue-200'  },
+  { key: 'Не заходили ни разу', label: '🚫 Не заходили ни разу', sub: 'Ни разу не подавали',    color: '#E93A58', bg: 'bg-[#FFF0F3]', border: 'border-[#FFB3BF]' },
+];
+
 export default function ClosureView() {
-  const [data, setData] = useState<ClosureObject[]>([]);
+  const { profile } = useAuth();
+  const canEdit = ['admin', 'manager', 'analyst'].includes(profile?.role ?? '');
+
+  const [data, setData]       = useState<ClosureObject[]>([]);
+  const [changes, setChanges] = useState<ClosureChange[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [tab, setTab] = useState<TabId>('payments');
+  const [histLoad, setHistLoad] = useState(true);
+  const [error, setError]     = useState('');
+  const [tab, setTab]         = useState<TabId>('payments');
   const [mogaeFilter, setMogaeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<PaymentStatus | null>(null);
+  const [editRecord, setEditRecord]   = useState<ClosureObject | null>(null);
+  const [showImport, setShowImport]   = useState(false);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -497,16 +591,25 @@ export default function ClosureView() {
     setLoading(false);
   };
 
-  useEffect(() => { void load(); }, []);
+  const loadChanges = async () => {
+    setHistLoad(true);
+    const { data: rows } = await supabase
+      .from('closure_changes')
+      .select('*, closure_objects(object_name, omsu)')
+      .order('changed_at', { ascending: false })
+      .limit(200);
+    setChanges((rows ?? []) as ClosureChange[]);
+    setHistLoad(false);
+  };
 
-  // Latest-snapshot rows only (for summary tab)
+  useEffect(() => { void load(); void loadChanges(); }, []);
+
   const latestDate = useMemo(() =>
     data.length ? data.reduce((mx, r) => r.snapshot_date > mx ? r.snapshot_date : mx, data[0].snapshot_date) : '',
   [data]);
 
   const latest = useMemo(() => data.filter(r => r.snapshot_date === latestDate), [data, latestDate]);
 
-  // Aggregations over latest snapshot
   const agg = useMemo(() => {
     const counts: Record<PaymentStatus, number> = { paid: 0, partial: 0, not_paid: 0, terminated: 0 };
     let contract = 0, paid = 0, remain = 0;
@@ -516,20 +619,20 @@ export default function ClosureView() {
       paid += r.paid_sum ?? 0;
       remain += r.remaining_sum ?? 0;
     });
-    // МОГЭ counts among not_paid
     const mogaeRows = latest.filter(r => r.payment_status === 'not_paid');
     const mogaeCounts: Record<string, number> = {};
     mogaeRows.forEach(r => { const k = r.mogae_status ?? 'Не заходили ни разу'; mogaeCounts[k] = (mogaeCounts[k] ?? 0) + 1; });
     return { total: latest.length, counts, contract, paid, remain, mogaeRows: mogaeRows.length, mogaeCounts };
   }, [latest]);
 
-  // Filtered table for payments tab
   const tableRows = useMemo(() => {
     let rows = latest;
     if (statusFilter) rows = rows.filter(r => r.payment_status === statusFilter);
-    if (mogaeFilter) rows = rows.filter(r => (r.mogae_status ?? 'Не заходили ни разу') === mogaeFilter);
+    if (mogaeFilter)  rows = rows.filter(r => (r.mogae_status ?? 'Не заходили ни разу') === mogaeFilter);
     return rows;
   }, [latest, statusFilter, mogaeFilter]);
+
+  const handleSaved = () => { void load(); void loadChanges(); };
 
   if (loading) return (
     <div className="flex items-center justify-center py-24">
@@ -545,67 +648,77 @@ export default function ClosureView() {
   );
 
   const contractPct = agg.contract > 0 ? (agg.paid / agg.contract) * 100 : 0;
-  const remainPct = agg.contract > 0 ? (agg.remain / agg.contract) * 100 : 0;
-
-  const MOGAE_ITEMS = [
-    { key: 'Заходили',            label: '🔄 Заходили в МОГЭ',       sub: 'Были ранее, не прошли',    color: '#d97706', bg: 'bg-amber-50',   border: 'border-amber-200' },
-    { key: 'В МОГЭ',              label: '⏳ Находятся в МОГЭ',      sub: 'Сейчас на рассмотрении',   color: '#1a6fba', bg: 'bg-blue-50',    border: 'border-blue-200'  },
-    { key: 'Не заходили ни разу', label: '🚫 Не заходили ни разу',   sub: 'Ни разу не подавали',      color: '#E93A58', bg: 'bg-[#FFF0F3]',  border: 'border-[#FFB3BF]' },
-  ];
+  const remainPct   = agg.contract > 0 ? (agg.remain / agg.contract) * 100 : 0;
 
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold text-[#8A4C08]">Закрытие объектов</h2>
-          <p className="text-slate-500">Оплаты по объектам теплоэнергетики
-            {latestDate && <span className="ml-2 text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full">
-              Актуально на {new Date(latestDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </span>}
+          <p className="text-slate-500 flex items-center gap-2 flex-wrap">
+            Оплаты по объектам теплоэнергетики
+            {latestDate && (
+              <span className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full">
+                Актуально на {new Date(latestDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
+            )}
           </p>
         </div>
-        <button onClick={load} className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition font-medium border border-slate-200">
-          <RefreshCw size={15} /> Обновить
-        </button>
+        <div className="flex items-center gap-2">
+          {canEdit && (
+            <button onClick={() => setShowImport(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition">
+              <Upload size={15} /> Импорт Excel
+            </button>
+          )}
+          <button onClick={() => { void load(); void loadChanges(); }}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition font-medium border border-slate-200">
+            <RefreshCw size={15} /> Обновить
+          </button>
+        </div>
       </div>
 
       {data.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
           <TrendingUp size={48} className="mx-auto text-slate-300 mb-4" />
           <p className="text-slate-500 font-medium mb-2">Данных пока нет</p>
-          <p className="text-slate-400 text-sm">Вставьте записи в таблицу <code className="bg-slate-100 px-1 rounded">closure_objects</code> в Supabase.</p>
+          {canEdit && (
+            <button onClick={() => setShowImport(true)}
+              className="mt-4 flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl transition mx-auto">
+              <Upload size={15} /> Загрузить из Excel
+            </button>
+          )}
         </div>
       ) : (
         <>
           {/* Tab bar */}
-          <div className="flex gap-1 bg-white border border-slate-200 rounded-2xl p-1.5 mb-6 w-fit shadow-sm">
+          <div className="flex gap-1 bg-white border border-slate-200 rounded-2xl p-1.5 mb-6 w-fit shadow-sm flex-wrap">
             {TABS.map(t => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
+              <button key={t.id} onClick={() => setTab(t.id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition
                   ${tab === t.id
                     ? 'bg-gradient-to-r from-[#E97386] to-[#EFA566] text-white shadow'
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
               >
                 {t.icon} {t.label}
+                {t.id === 'history' && changes.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-white/30 rounded-full">{changes.length}</span>
+                )}
               </button>
             ))}
           </div>
 
-          {/* ── TAB 1: Payments ── */}
+          {/* ── TAB: Payments ── */}
           {tab === 'payments' && (
             <div className="space-y-6">
-              {/* KPI row */}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <KpiCard label="Всего объектов" value={agg.total} accent="#0f766e" icon={<Layers size={22} />} />
                 {(['paid','partial','not_paid','terminated'] as PaymentStatus[]).map(s => {
                   const cfg = PAYMENT_CFG[s];
                   const icon = s === 'paid' ? <CheckCircle2 size={22} /> : s === 'partial' ? <Clock3 size={22} /> : s === 'not_paid' ? <XCircle size={22} /> : <MinusCircle size={22} />;
                   return (
-                    <KpiCard
-                      key={s} label={cfg.label} value={agg.counts[s]}
+                    <KpiCard key={s} label={cfg.label} value={agg.counts[s]}
                       sub={`${((agg.counts[s] / (agg.total || 1)) * 100).toFixed(1)}% от общего`}
                       accent={cfg.accent} icon={icon}
                       active={statusFilter === s}
@@ -615,26 +728,20 @@ export default function ClosureView() {
                 })}
               </div>
 
-              {/* Money row */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <MoneyCard label="Сумма контрактов" value={fmtMoney(agg.contract)} sub="Общий объём обязательств" pct={100} accent="#0f766e" />
                 <MoneyCard label="Оплачено" value={fmtMoney(agg.paid)} sub={`${contractPct.toFixed(1)}% от суммы контрактов`} pct={contractPct} accent="#059669" />
                 <MoneyCard label="Остаток к оплате" value={fmtMoney(agg.remain)} sub={`${remainPct.toFixed(1)}% от суммы контрактов`} pct={remainPct} accent="#E93A58" />
               </div>
 
-              {/* Donut + МОГЭ split */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Donut */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex items-center gap-8">
-                  <DonutChart
-                    total={agg.total}
-                    segments={[
-                      { label: 'Оплачено полностью', n: agg.counts.paid,       color: '#059669' },
-                      { label: 'Оплачено частично',  n: agg.counts.partial,    color: '#d97706' },
-                      { label: 'Не оплачено',        n: agg.counts.not_paid,   color: '#E93A58' },
-                      { label: 'Расторгнуто',        n: agg.counts.terminated, color: '#94a3b8' },
-                    ]}
-                  />
+                  <DonutChart total={agg.total} segments={[
+                    { label: 'Оплачено полностью', n: agg.counts.paid,       color: '#059669' },
+                    { label: 'Оплачено частично',  n: agg.counts.partial,    color: '#d97706' },
+                    { label: 'Не оплачено',        n: agg.counts.not_paid,   color: '#E93A58' },
+                    { label: 'Расторгнуто',        n: agg.counts.terminated, color: '#94a3b8' },
+                  ]} />
                   <div className="space-y-2">
                     {(['paid','partial','not_paid','terminated'] as PaymentStatus[]).map(s => (
                       <div key={s} className="flex items-center gap-2 text-sm">
@@ -646,7 +753,6 @@ export default function ClosureView() {
                   </div>
                 </div>
 
-                {/* МОГЭ split */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                   <div className="text-xs font-bold text-[#E93A58] uppercase tracking-wide mb-3 flex items-center gap-2">
                     <AlertTriangle size={13} /> МОГЭ — {agg.mogaeRows} объектов не оплачено
@@ -657,12 +763,9 @@ export default function ClosureView() {
                       const pct = Math.round((cnt / (agg.mogaeRows || 1)) * 100);
                       const active = mogaeFilter === it.key;
                       return (
-                        <button
-                          key={it.key}
-                          onClick={() => setMogaeFilter(active ? null : it.key)}
+                        <button key={it.key} onClick={() => setMogaeFilter(active ? null : it.key)}
                           className={`rounded-xl p-3 border-2 text-left transition hover:-translate-y-0.5 hover:shadow-md ${it.bg} ${it.border} ${active ? 'ring-2' : ''}`}
-                          style={{ ['--tw-ring-color' as string]: it.color }}
-                        >
+                          style={{ ['--tw-ring-color' as string]: it.color }}>
                           <div className="text-xs font-bold leading-tight" style={{ color: it.color }}>{it.label}</div>
                           <div className="text-3xl font-black mt-1" style={{ color: it.color }}>{cnt}</div>
                           <div className="text-xs opacity-60 mt-0.5">{it.sub} · {pct}%</div>
@@ -674,35 +777,61 @@ export default function ClosureView() {
                     })}
                   </div>
                   {(statusFilter || mogaeFilter) && (
-                    <button
-                      onClick={() => { setStatusFilter(null); setMogaeFilter(null); }}
-                      className="mt-3 text-xs text-teal-600 hover:underline"
-                    >
-                      × Сбросить фильтры
-                    </button>
+                    <button onClick={() => { setStatusFilter(null); setMogaeFilter(null); }}
+                      className="mt-3 text-xs text-teal-600 hover:underline">× Сбросить фильтры</button>
                   )}
                 </div>
               </div>
 
-              {/* Objects table */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                <h3 className="text-sm font-bold text-[#8A4C08] uppercase tracking-wide mb-4">
-                  Все объекты {statusFilter ? `· ${PAYMENT_CFG[statusFilter].label}` : ''}{mogaeFilter ? ` · МОГЭ: ${mogaeFilter}` : ''}
-                </h3>
-                <ObjectsTable rows={tableRows} />
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                  <h3 className="text-sm font-bold text-[#8A4C08] uppercase tracking-wide">
+                    Все объекты{statusFilter ? ` · ${PAYMENT_CFG[statusFilter].label}` : ''}{mogaeFilter ? ` · МОГЭ: ${mogaeFilter}` : ''}
+                  </h3>
+                  {canEdit && (
+                    <div className="flex items-center gap-1.5 text-xs text-teal-600 bg-teal-50 border border-teal-100 rounded-lg px-2.5 py-1.5">
+                      <Pencil size={11} /> Нажмите на строку для редактирования
+                    </div>
+                  )}
+                </div>
+                <ObjectsTable rows={tableRows} onEdit={setEditRecord} canEdit={canEdit} />
               </div>
             </div>
           )}
 
-          {/* ── TAB 2: Contractors ── */}
-          {tab === 'contractors' && <ContractorsTab data={latest} />}
+          {/* ── TAB: Contractors ── */}
+          {tab === 'contractors' && (
+            <ContractorsTab data={latest} onEdit={setEditRecord} canEdit={canEdit} />
+          )}
 
-          {/* ── TAB 3: Causes ── */}
-          {tab === 'causes' && <CausesTab data={latest} />}
+          {/* ── TAB: Causes ── */}
+          {tab === 'causes' && (
+            <CausesTab data={latest} onEdit={setEditRecord} canEdit={canEdit} />
+          )}
 
-          {/* ── TAB 4: Dynamics ── */}
+          {/* ── TAB: History ── */}
+          {tab === 'history' && (
+            <HistoryTab changes={changes} loading={histLoad} />
+          )}
+
+          {/* ── TAB: Dynamics ── */}
           {tab === 'dynamics' && <DynamicsTab data={data} />}
         </>
+      )}
+
+      {/* Modals */}
+      {editRecord && (
+        <ClosureEditModal
+          record={editRecord}
+          onClose={() => setEditRecord(null)}
+          onSaved={handleSaved}
+        />
+      )}
+      {showImport && (
+        <ClosureImportModal
+          onClose={() => setShowImport(false)}
+          onImported={() => { setShowImport(false); void load(); void loadChanges(); }}
+        />
       )}
     </div>
   );

@@ -18,10 +18,15 @@ Features per module: dashboard → create_meeting, delete_meeting; objects → d
 
 **Deny-by-default:** if `role_permissions` is loaded and no entry found → `false`. If not yet loaded (empty array) → allow (loading state).
 
+## closure_objects write access
+admin, manager, analyst can edit closure_objects (migration_v6.sql updated the policy).
+guest can only read.
+
 ## How to apply
 - `hasModule(module)` in App.tsx guards view rendering
 - `moduleAccess` prop on HomePage filters visible module cards
 - UsersView tab "Права доступа" — matrix UI, upserts to role_permissions via Supabase client
 
 ## Migration
-`task-tracker/supabase/migration_v5.sql` — applied; includes districts column, analyst role, role_permissions table + default rows.
+- `migration_v5.sql` — applied: districts column, analyst role, role_permissions table + default rows
+- `migration_v6.sql` — applied: closure_changes audit table, analyst write access to closure_objects
