@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Search, Building2, User, Calendar, Tag, GitBranch, Upload } from 'lucide-react';
+import { Search, Building2, User, Calendar, Tag, GitBranch, Upload, Trash2 } from 'lucide-react';
 import type { Address, Task, Meeting } from '../types';
 import ObjectDetailModal from './ObjectDetailModal';
 import AddressUploadModal from './AddressUploadModal';
+import { supabase } from '../lib/supabase';
 
 interface ObjectsViewProps {
   addresses: Address[];
@@ -16,6 +17,26 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
   const [search, setSearch] = useState('');
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Address | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError('');
+    const { error } = await supabase
+      .from('addresses')
+      .delete()
+      .eq('Код УИН', deleteTarget['Код УИН']);
+    setDeleting(false);
+    if (error) {
+      setDeleteError('Ошибка удаления: ' + error.message);
+    } else {
+      setDeleteTarget(null);
+      onReload?.();
+    }
+  };
 
   const filtered = addresses.filter((a) =>
     a["Код УИН"].toLowerCase().includes(search.toLowerCase()) ||
@@ -60,11 +81,13 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
           return (
             <div
               key={addr["Код УИН"]}
-              onClick={() => setSelectedAddress(addr)}
-              className="bg-white p-5 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition cursor-pointer group"
+              className="bg-white p-5 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition group"
             >
               <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
+                <div
+                  className="flex-1 min-w-0 cursor-pointer"
+                  onClick={() => setSelectedAddress(addr)}
+                >
                   <div className="flex flex-wrap items-center gap-2 mb-2">
                     <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-mono font-semibold">
                       УИН: {addr["Код УИН"]}
@@ -94,12 +117,23 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
                     )}
                   </div>
                 </div>
-                {tCount > 0 && (
-                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-500 shrink-0">
-                    <GitBranch size={13} />
-                    {tCount} поруч.
-                  </div>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  {tCount > 0 && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-500">
+                      <GitBranch size={13} />
+                      {tCount} поруч.
+                    </div>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(addr); setDeleteError(''); }}
+                      className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                      title="Удалить объект"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -135,6 +169,48 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
             onReload?.();
           }}
         />
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 rounded-xl">
+                <Trash2 size={20} className="text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Удалить объект?</h3>
+            </div>
+            <p className="text-slate-600 text-sm">
+              Вы собираетесь удалить объект{' '}
+              <span className="font-semibold text-slate-900">
+                {deleteTarget['Наименование объекта']}
+              </span>{' '}
+              (УИН: <span className="font-mono text-blue-700">{deleteTarget['Код УИН']}</span>).
+              Это действие необратимо.
+            </p>
+            {deleteError && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                {deleteError}
+              </p>
+            )}
+            <div className="flex justify-end gap-3 pt-1">
+              <button
+                onClick={() => { setDeleteTarget(null); setDeleteError(''); }}
+                disabled={deleting}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl transition text-sm font-medium disabled:opacity-50"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition text-sm font-medium disabled:opacity-60"
+              >
+                {deleting ? 'Удаление...' : 'Удалить'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
