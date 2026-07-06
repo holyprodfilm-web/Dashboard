@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AuthProvider, useAuth } from './lib/AuthContext';
-import { Home, Target, Loader2, LogOut, AlertCircle, UserCircle } from 'lucide-react';
+import { Home, Target, Loader2, LogOut, AlertCircle } from 'lucide-react';
 import UserProfileModal from './components/UserProfileModal';
 import type { View, Meeting, Task, Address, Profile } from './types';
 import { ROLE_LABELS, ROLE_COLORS } from './types';
@@ -69,6 +69,39 @@ function AppContent() {
       void loadAllData();
     }
   }, [user, loadAllData]);
+
+  // Real-time subscription: keep tasks in sync so health badge counts update live
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('tasks-live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks' },
+        (payload) => {
+          setTasks((prev) => {
+            if (payload.eventType === 'INSERT') {
+              return [...prev, payload.new as Task];
+            }
+            if (payload.eventType === 'UPDATE') {
+              return prev.map((t) =>
+                t.id === (payload.new as Task).id ? (payload.new as Task) : t
+              );
+            }
+            if (payload.eventType === 'DELETE') {
+              return prev.filter((t) => t.id !== (payload.old as Task).id);
+            }
+            return prev;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   if (loading || (user && dataLoading)) {
     return (
