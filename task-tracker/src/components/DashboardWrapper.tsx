@@ -106,6 +106,7 @@ export default function DashboardWrapper({
         <DashboardView
           tasks={tasks}
           meetings={meetings}
+          addresses={addresses}
           onManagerClick={onManagerClick}
           onStatusFilter={onStatusFilter}
         />
