@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Building2, User, Calendar, Tag, GitBranch, Upload, Trash2, ClipboardList, X as XIcon, Filter } from 'lucide-react';
+import { Search, Building2, User, Calendar, Tag, GitBranch, Upload, Trash2, ClipboardList, X as XIcon, Filter, Link as LinkIcon, Check } from 'lucide-react';
 import type { Address, Task, Meeting } from '../types';
 import { STATUS_CONFIG } from '../types';
 import { getAutoStatus } from '../utils';
@@ -35,6 +35,15 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
   const [selectedFocusTaskId, setSelectedFocusTaskId] = useState<number | null>(null);
   const [deleteDialogDetailAddress, setDeleteDialogDetailAddress] = useState<Address | null>(null);
   const [deleteDialogFocusTaskId, setDeleteDialogFocusTaskId] = useState<number | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  };
+
   // Local health-badge filter (independent of the external statusFilter prop)
   // Initialise from URL query param (direct navigation) or sessionStorage (returning from another view)
   const [localStatusFilter, setLocalStatusFilter] = useState<string | null>(() => {
@@ -143,15 +152,38 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
           </p>
           {/* External filter indicator (from dashboard KPI navigation) */}
           {statusFilter && (
-            <button
-              onClick={onClearFilter}
-              className="mb-2 flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition font-medium"
-            >
-              <Filter size={12} />
-              Фильтр: {STATUS_FILTER_LABELS[statusFilter]}
-              <XIcon size={12} className="ml-1 opacity-60" />
-              Сбросить
-            </button>
+            <div className="mb-2 flex items-center gap-2">
+              <button
+                onClick={onClearFilter}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition font-medium"
+              >
+                <Filter size={12} />
+                Фильтр: {STATUS_FILTER_LABELS[statusFilter]}
+                <XIcon size={12} className="ml-1 opacity-60" />
+                Сбросить
+              </button>
+              <button
+                onClick={handleCopyLink}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition font-medium border ${
+                  linkCopied
+                    ? 'bg-teal-50 border-teal-200 text-teal-700'
+                    : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                }`}
+                title="Скопировать ссылку на текущий фильтр"
+              >
+                {linkCopied ? (
+                  <>
+                    <Check size={12} className="text-teal-600" />
+                    Ссылка скопирована!
+                  </>
+                ) : (
+                  <>
+                    <LinkIcon size={12} />
+                    Скопировать ссылку
+                  </>
+                )}
+              </button>
+            </div>
           )}
           {/* Health summary badge row */}
           {tasks.length > 0 && (
