@@ -54,18 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
+        // Remove any legacy unscoped keys left over from before user-scoped storage was introduced
         localStorage.removeItem('objectsSearch');
         localStorage.removeItem('objectsLocalStatusFilter');
         localStorage.removeItem('lastUserId');
-      }
-      if (event === 'SIGNED_IN' && session?.user) {
-        const lastUserId = localStorage.getItem('lastUserId');
-        if (lastUserId && lastUserId !== session.user.id) {
-          // A different user logged in on this device — clear their saved filters
-          localStorage.removeItem('objectsSearch');
-          localStorage.removeItem('objectsLocalStatusFilter');
-        }
-        localStorage.setItem('lastUserId', session.user.id);
       }
       setSession(session);
       setUser(session?.user ?? null);

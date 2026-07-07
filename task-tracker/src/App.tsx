@@ -498,6 +498,7 @@ function AppContent() {
             onReload={loadAllData}
             statusFilter={objectsStatusFilter}
             onClearFilter={() => setObjectsStatusFilter(null)}
+            currentUserId={profile?.id}
           />
         )}
         {view === 'nts' && hasModule('nts') && (

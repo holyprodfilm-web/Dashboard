@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Building2, User, Calendar, Tag, GitBranch, Trash2, ClipboardList, X as XIcon, Filter, Link as LinkIcon, Check } from 'lucide-react';
 import type { Address, Task, Meeting } from '../types';
 import { STATUS_CONFIG } from '../types';
@@ -20,12 +20,19 @@ interface ObjectsViewProps {
   onReload?: () => void;
   statusFilter?: 'in_work' | 'completed' | 'overdue' | null;
   onClearFilter?: () => void;
+  currentUserId?: string;
 }
 
-export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onReload, statusFilter, onClearFilter }: ObjectsViewProps) {
+export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onReload, statusFilter, onClearFilter, currentUserId }: ObjectsViewProps) {
+  const searchKey = `objectsSearch_${currentUserId ?? ''}`;
   const [search, setSearch] = useState<string>(
-    () => localStorage.getItem('objectsSearch') ?? ''
+    () => localStorage.getItem(searchKey) ?? ''
   );
+
+  // One-time migration: remove old unscoped localStorage keys left over before user-scoped keys were introduced
+  useEffect(() => {
+    localStorage.removeItem('objectsSearch');
+  }, []);
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Address | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -134,8 +141,8 @@ export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onRel
           onChange={e => {
             const v = e.target.value;
             setSearch(v);
-            if (v) localStorage.setItem('objectsSearch', v);
-            else localStorage.removeItem('objectsSearch');
+            if (v) localStorage.setItem(searchKey, v);
+            else localStorage.removeItem(searchKey);
           }}
           placeholder="Поиск по УИН, названию, округу или руководителю..."
           className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition shadow-sm"
