@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FlaskConical, Plus, RefreshCw, Loader2, ChevronRight, FileText, CheckCircle2,
-  Clock, AlertTriangle, TrendingUp, Users, Banknote, BarChart3, Search, Filter,
+  Clock, AlertTriangle, TrendingUp, Users, Banknote, BarChart3, Search, Filter, Download,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { NtsEntry, NtsDocRound, Profile } from '../types';
 import { NTS_STATUS_CONFIG, NTS_PROTOCOL_STATUS_CONFIG } from '../types';
 import NtsEntryModal from './NtsEntryModal';
 import Toast from './Toast';
+import { exportNtsToExcel } from '../lib/ntsExport';
 
 interface NtsViewProps {
   profiles: Profile[];
@@ -31,10 +32,23 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   const [selectedEntry, setSelectedEntry] = useState<NtsEntry | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [statusChangeToast, setStatusChangeToast] = useState<string | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
   // Keep a ref to the current entries so the realtime closure can compare old vs new status
   const entriesRef = useRef<NtsEntry[]>([]);
 
   const isAdmin = currentUserRole === 'admin' || (isModuleAdmin ?? false);
+
+  const handleExport = async (entriesToExport: NtsEntry[]) => {
+    if (exportLoading) return;
+    setExportLoading(true);
+    try {
+      const entryIds = new Set(entriesToExport.map(e => e.id));
+      const filteredRounds = rounds.filter(r => entryIds.has(r.nts_entry_id));
+      await exportNtsToExcel(entriesToExport, filteredRounds, profiles);
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -282,6 +296,17 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
       {/* ── DASHBOARD TAB ──────────────────────────────────────────────── */}
       {tab === 'dashboard' && (
         <div className="space-y-6">
+          <div className="flex justify-end">
+            <button
+              onClick={() => void handleExport(entries)}
+              disabled={exportLoading || entries.length === 0}
+              title="Экспортировать все записи НТС в Excel"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition text-sm font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {exportLoading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+              Экспорт всего реестра
+            </button>
+          </div>
           {/* KPI row 1 */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <KpiCard icon={<FlaskConical size={20} className="text-indigo-500" />} label="Всего объектов НТС" value={total} bg="bg-indigo-50" />
@@ -440,7 +465,7 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
       {/* ── LIST TAB ───────────────────────────────────────────────────── */}
       {tab === 'list' && (
         <div>
-          <div className="flex flex-wrap gap-3 mb-4">
+          <div className="flex flex-wrap gap-3 mb-4 items-center">
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -463,6 +488,23 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
                   <option key={k} value={k}>{v.label}</option>
                 ))}
               </select>
+            </div>
+            <div className="ml-auto">
+              <button
+                onClick={() => void handleExport(filtered)}
+                disabled={exportLoading || filtered.length === 0}
+                title={
+                  filtered.length === entries.length
+                    ? 'Экспортировать все записи НТС'
+                    : `Экспортировать ${filtered.length} из ${entries.length} записей (по фильтру)`
+                }
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition text-sm font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {exportLoading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                {filtered.length === entries.length
+                  ? 'Экспорт'
+                  : `Экспорт (${filtered.length})`}
+              </button>
             </div>
           </div>
 
