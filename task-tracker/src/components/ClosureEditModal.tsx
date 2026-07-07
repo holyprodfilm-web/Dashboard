@@ -39,6 +39,78 @@ const MOGAE_OPTIONS: Array<{ value: MogaeStatus; label: string }> = [
   { value: 'Не заходили ни разу', label: '🚫 Не заходили ни разу' },
 ];
 
+// ── Типовые причины по блокам ─────────────────────────────────────────────────
+
+const CAUSE_MOGAE_OPTIONS = [
+  'Долгая передача исходных данных от ОМСУ подрядчику',
+  'Корректировка ТЗ',
+  'Оформление ТС в муниципальную собственность',
+  'Низкий темп разработки ПИР подрядчиком',
+  'Длительное согласование ПИР с Заказчиком',
+  'Длительное прохождение НТС',
+  'Необходимость проведения НТС',
+  'Отсутствие тех.прис',
+  'Отсутствие ГПЗУ на земельный участок',
+  'Проведение дополнительных инж. изысканий в соответствии с ЗНП',
+  'Повторное МОГЭ, корректировка объемов',
+  'Смена проектировщика',
+  'Финансовые трудности у ПО',
+];
+
+const CAUSE_SMR_OPTIONS = [
+  'Отсутствие тех.прис',
+  'Финансовые трудности подрядчиков',
+  'Низкий темп производства работ подрядной организацией',
+  'Расторжение контракта (новый подрядчик)',
+  'Попадание в зоны ЗОУИТ',
+  'Выявление доп. объема работ',
+  'Длительное согласование с ведомствами (Ростехнадзор, МОГ и тд)',
+  'Длительное получение РНР, допусков на работы',
+];
+
+const CAUSE_IDKS_OPTIONS = [
+  'Замечания не устранимы, требуется повторный заход в МОГЭ',
+  'Исполнительная документация не подписана с Заказчиком',
+  'ИД и КС-2 не переданы в УТНКР',
+  'Низкий темп устранения замечания УТНКР',
+  'Заказчик выставляет замечания подрядчику',
+  'Спор из-за объемов выполненных работ',
+];
+
+/** Выпадающий список типовых причин с возможностью выбрать «Другое» */
+function CauseSelect({
+  label, value, onChange, options, emoji,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  emoji: string;
+}) {
+  const isCustom = value !== '' && !options.includes(value);
+  return (
+    <div>
+      <label className="block text-xs text-slate-400 mb-1">{emoji} {label}</label>
+      <select
+        value={isCustom ? '__other__' : value}
+        onChange={e => {
+          if (e.target.value === '__other__') return; // держим текущее custom-значение
+          onChange(e.target.value);
+        }}
+        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
+      >
+        <option value="">— Не указано</option>
+        {options.map(o => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+        {isCustom && (
+          <option value="__other__">{value}</option>
+        )}
+      </select>
+    </div>
+  );
+}
+
 const fmtMlnInput = (v: number) => (v / 1e6).toFixed(2);
 const parseMln = (s: string) => parseFloat(s.replace(',', '.')) * 1e6 || 0;
 const fmtDate = (iso: string) =>
@@ -76,7 +148,7 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
   const [smr, setSmr]                     = useState(record.smr_completed ?? '');
   const [smrPct, setSmrPct]               = useState(record.smr_pct ?? '');
   const [idKs, setIdKs]                   = useState(record.id_ks_submitted ?? '');
-  const [typicalBlock, setTypicalBlock]   = useState(record.typical_block ?? '');
+  const [typicalBlock]                    = useState(record.typical_block ?? '');
   const [cause, setCause]                 = useState(record.typical_cause ?? '');
   const [causeSmr, setCauseSmr]           = useState(record.typical_cause_smr ?? '');
   const [causeIdks, setCauseIdks]         = useState(record.typical_cause_idks ?? '');
@@ -337,24 +409,11 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
             />
           </div>
 
-          {/* Causes section */}
+          {/* Payment date */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Блок причин</label>
-            <input value={typicalBlock} onChange={e => setTypicalBlock(e.target.value)}
-              placeholder="Напр.: Долгая передача ИД, 65.1 Формирование пакета…"
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Дата оплаты</label>
+            <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Типичная причина</label>
-              <input value={cause} onChange={e => setCause(e.target.value)} placeholder="Уточнение причины задержки"
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Дата оплаты</label>
-              <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
-            </div>
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Обоснование оплаты</label>
@@ -406,25 +465,28 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
               Типовые причины по блокам
             </label>
-            <div className="space-y-2">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">📋 Блок 1 — Причина по МОГЭ</label>
-                <input value={cause} onChange={e => setCause(e.target.value)}
-                  placeholder="Уточнение причины по МОГЭ"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">🏗️ Блок 2 — Причина по СМР</label>
-                <input value={causeSmr} onChange={e => setCauseSmr(e.target.value)}
-                  placeholder="Уточнение причины по СМР"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">📁 Блок 3 — Причина по ИД и КС</label>
-                <input value={causeIdks} onChange={e => setCauseIdks(e.target.value)}
-                  placeholder="Уточнение причины по ИД/КС"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
-              </div>
+            <div className="space-y-2 p-3 bg-amber-50 rounded-xl border border-amber-100">
+              <CauseSelect
+                label="Блок 1 — Причина по МОГЭ"
+                emoji="📋"
+                value={cause}
+                onChange={setCause}
+                options={CAUSE_MOGAE_OPTIONS}
+              />
+              <CauseSelect
+                label="Блок 2 — Причина по СМР"
+                emoji="🏗️"
+                value={causeSmr}
+                onChange={setCauseSmr}
+                options={CAUSE_SMR_OPTIONS}
+              />
+              <CauseSelect
+                label="Блок 3 — Причина по ИД и КС"
+                emoji="📁"
+                value={causeIdks}
+                onChange={setCauseIdks}
+                options={CAUSE_IDKS_OPTIONS}
+              />
             </div>
           </div>
 
