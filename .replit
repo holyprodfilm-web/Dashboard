@@ -43,6 +43,6 @@ timeoutMs = 60000
 
 [deployment]
 deploymentTarget = "static"
-build = ["npm", "--prefix", "task-tracker", "run", "build"]
+build = ["bash", "-c", "cd task-tracker && npm install && npm run build"]
 publicDir = "task-tracker/dist"
 run = ["node", "task-tracker/scripts/backup.cjs"]
