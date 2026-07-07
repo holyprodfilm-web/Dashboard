@@ -33,6 +33,8 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [statusChangeToast, setStatusChangeToast] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
+  // entry_id → names of OTHER users currently editing that entry
+  const [editingPresence, setEditingPresence] = useState<Map<number, string[]>>(new Map());
   // Keep a ref to the current entries so the realtime closure can compare old vs new status
   const entriesRef = useRef<NtsEntry[]>([]);
 
@@ -141,6 +143,41 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
       void supabase.removeChannel(channel);
     };
   }, []);
+
+  // ── Presence channel: track who is editing which entry ─────────────────
+  useEffect(() => {
+    type PresenceState = { user_id: string; entry_id: number; user_name: string };
+
+    const rebuild = (state: Record<string, PresenceState[]>) => {
+      const map = new Map<number, string[]>();
+      Object.values(state).forEach(presences => {
+        presences.forEach(p => {
+          if (p.user_id === currentUserId) return; // skip self
+          const list = map.get(p.entry_id) ?? [];
+          if (!list.includes(p.user_name)) list.push(p.user_name);
+          map.set(p.entry_id, list);
+        });
+      });
+      setEditingPresence(new Map(map));
+    };
+
+    const presenceChannel = supabase
+      .channel('nts-presence')
+      .on('presence', { event: 'sync' }, () => {
+        rebuild(presenceChannel.presenceState() as Record<string, PresenceState[]>);
+      })
+      .on('presence', { event: 'join' }, () => {
+        rebuild(presenceChannel.presenceState() as Record<string, PresenceState[]>);
+      })
+      .on('presence', { event: 'leave' }, () => {
+        rebuild(presenceChannel.presenceState() as Record<string, PresenceState[]>);
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(presenceChannel);
+    };
+  }, [currentUserId]);
 
   const profileMap = new Map(profiles.map(p => [p.id, p]));
   const districtByUin = new Map(addresses.map(a => [a.uin, a.district]));
@@ -537,10 +574,22 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
                     const sCfg = NTS_STATUS_CONFIG[e.status];
                     const roundExists = hasRound(e.id);
                     const approved = lastRoundApproved(e.id);
+                    const editors = editingPresence.get(e.id) ?? [];
                     return (
                       <tr key={e.id} className="hover:bg-indigo-50/30 cursor-pointer transition" onClick={() => setSelectedEntry(e)}>
                         <td className="px-5 py-4">
-                          <div className="font-medium text-slate-900 leading-tight">{e.object_name}</div>
+                          <div className="font-medium text-slate-900 leading-tight flex items-center gap-2">
+                            {e.object_name}
+                            {editors.length > 0 && (
+                              <span
+                                title={`Редактирует: ${editors.join(', ')}`}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 leading-none"
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                {editors.length === 1 ? editors[0].split(' ')[0] : `${editors.length} чел.`}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-xs text-slate-400 font-mono mt-0.5">{e.object_uin}</div>
                         </td>
                         <td className="px-5 py-4 text-slate-600 max-w-[180px]">

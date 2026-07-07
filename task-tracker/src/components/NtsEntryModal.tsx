@@ -65,6 +65,26 @@ export default function NtsEntryModal({ entry, profiles, currentUserId, isAdmin,
   const [savedEntry, setSavedEntry] = useState<NtsEntry | null>(entry);
   const isEdit = !!savedEntry;
 
+  // ── Presence tracking: broadcast that this user is editing this entry ──
+  useEffect(() => {
+    const entryId = savedEntry?.id;
+    if (!entryId || !currentUserId) return;
+
+    const userName = profiles.find(p => p.id === currentUserId)?.full_name ?? 'Пользователь';
+    const channel = supabase.channel('nts-presence');
+
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ user_id: currentUserId, entry_id: entryId, user_name: userName });
+      }
+    });
+
+    return () => {
+      void channel.untrack().then(() => supabase.removeChannel(channel));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedEntry?.id, currentUserId]);
+
   const [tab, setTab] = useState<TabKey>('main');
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [vksDates, setVksDates] = useState<string[]>([]);
