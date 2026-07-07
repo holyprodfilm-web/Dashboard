@@ -26,13 +26,33 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   const [rounds, setRounds] = useState<NtsDocRound[]>([]);
   const [addresses, setAddresses] = useState<AddrItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const tabKey          = `nts_tab_${currentUserId ?? ''}`;
-  const searchQueryKey  = `nts_searchQuery_${currentUserId ?? ''}`;
-  const statusFilterKey = `nts_statusFilter_${currentUserId ?? ''}`;
+  // Keys follow the usr_<userId>_<name> convention so AuthContext can prune stale
+  // keys automatically without a hardcoded prefix list.
+  const tabKey          = `usr_${currentUserId ?? ''}_nts_tab`;
+  const searchQueryKey  = `usr_${currentUserId ?? ''}_nts_searchQuery`;
+  const statusFilterKey = `usr_${currentUserId ?? ''}_nts_statusFilter`;
 
-  const [tab, setTab] = useState<TabType>(() => (localStorage.getItem(tabKey) as TabType) ?? 'dashboard');
-  const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem(searchQueryKey) ?? '');
-  const [statusFilter, setStatusFilter] = useState<string>(() => localStorage.getItem(statusFilterKey) ?? 'all');
+  const [tab, setTab] = useState<TabType>(() => {
+    const fromNew = localStorage.getItem(tabKey);
+    if (fromNew !== null) return fromNew as TabType;
+    const fromOld = localStorage.getItem(`nts_tab_${currentUserId ?? ''}`);
+    if (fromOld !== null) { localStorage.setItem(tabKey, fromOld); localStorage.removeItem(`nts_tab_${currentUserId ?? ''}`); return fromOld as TabType; }
+    return 'dashboard';
+  });
+  const [searchQuery, setSearchQuery] = useState(() => {
+    const fromNew = localStorage.getItem(searchQueryKey);
+    if (fromNew !== null) return fromNew;
+    const fromOld = localStorage.getItem(`nts_searchQuery_${currentUserId ?? ''}`);
+    if (fromOld !== null) { localStorage.setItem(searchQueryKey, fromOld); localStorage.removeItem(`nts_searchQuery_${currentUserId ?? ''}`); return fromOld; }
+    return '';
+  });
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const fromNew = localStorage.getItem(statusFilterKey);
+    if (fromNew !== null) return fromNew;
+    const fromOld = localStorage.getItem(`nts_statusFilter_${currentUserId ?? ''}`);
+    if (fromOld !== null) { localStorage.setItem(statusFilterKey, fromOld); localStorage.removeItem(`nts_statusFilter_${currentUserId ?? ''}`); return fromOld; }
+    return 'all';
+  });
   const [selectedEntry, setSelectedEntry] = useState<NtsEntry | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [statusChangeToast, setStatusChangeToast] = useState<string | null>(null);
@@ -74,11 +94,15 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
 
   useEffect(() => { void loadData(); }, [loadData]);
 
-  // One-time migration: remove old unscoped localStorage keys left over before user-scoped keys were introduced
+  // One-time migration: remove legacy unscoped and blank-suffix old-format keys
   useEffect(() => {
     localStorage.removeItem('nts_tab');
     localStorage.removeItem('nts_searchQuery');
     localStorage.removeItem('nts_statusFilter');
+    // Blank-suffix old-format keys left from pre-auth sessions
+    localStorage.removeItem('nts_tab_');
+    localStorage.removeItem('nts_searchQuery_');
+    localStorage.removeItem('nts_statusFilter_');
   }, []);
 
   // Keep entriesRef in sync so the realtime closure can compare statuses without stale state

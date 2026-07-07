@@ -24,14 +24,27 @@ interface ObjectsViewProps {
 }
 
 export default function ObjectsView({ addresses, tasks, meetings, isAdmin, onReload, statusFilter, onClearFilter, currentUserId }: ObjectsViewProps) {
-  const searchKey = `objectsSearch_${currentUserId ?? ''}`;
-  const [search, setSearch] = useState<string>(
-    () => localStorage.getItem(searchKey) ?? ''
-  );
+  // Keys follow the usr_<userId>_<name> convention so AuthContext can prune stale
+  // keys automatically without a hardcoded prefix list.
+  const searchKey = `usr_${currentUserId ?? ''}_objectsSearch`;
+  const [search, setSearch] = useState<string>(() => {
+    // Try the new key first; if absent, migrate from the old objectsSearch_<userId> key.
+    const fromNew = localStorage.getItem(searchKey);
+    if (fromNew !== null) return fromNew;
+    const oldKey = `objectsSearch_${currentUserId ?? ''}`;
+    const fromOld = localStorage.getItem(oldKey);
+    if (fromOld !== null) {
+      localStorage.setItem(searchKey, fromOld);
+      localStorage.removeItem(oldKey);
+      return fromOld;
+    }
+    return '';
+  });
 
-  // One-time migration: remove old unscoped localStorage keys left over before user-scoped keys were introduced
+  // One-time migration: remove legacy unscoped and old-format scoped keys
   useEffect(() => {
     localStorage.removeItem('objectsSearch');
+    localStorage.removeItem('objectsSearch_'); // blank-suffix from pre-auth sessions
   }, []);
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Address | null>(null);

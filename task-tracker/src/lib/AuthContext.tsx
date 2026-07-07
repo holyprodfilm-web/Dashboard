@@ -22,32 +22,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Prefixes used for user-scoped localStorage keys across the app
-  const SCOPED_KEY_PREFIXES = [
-    'objectsSearch_',
-    'nts_tab_',
-    'nts_searchQuery_',
-    'nts_statusFilter_',
-  ];
-
   /**
-   * Remove any scoped localStorage keys whose suffix does not match `currentUserId`.
-   * This catches blank-suffix keys (suffix = '') left over from sessions where
-   * currentUserId was undefined, as well as keys belonging to a different account.
+   * Remove any localStorage keys following the `usr_<userId>_<name>` convention
+   * whose embedded userId does not match `currentUserId`.
+   * Because the userId is encoded at a fixed position in the key, no hardcoded
+   * prefix list is needed — any new scoped key that follows the convention is
+   * automatically pruned without a code change here.
    */
   const pruneStaleUserKeys = (currentUserId: string) => {
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key) continue;
-      for (const prefix of SCOPED_KEY_PREFIXES) {
-        if (key.startsWith(prefix)) {
-          const suffix = key.slice(prefix.length);
-          if (suffix !== currentUserId) {
-            keysToRemove.push(key);
-          }
-          break;
-        }
+      // Match keys of the form usr_<userId>_<anything>
+      const match = key.match(/^usr_([^_]+)_/);
+      if (match && match[1] !== currentUserId) {
+        keysToRemove.push(key);
       }
     }
     keysToRemove.forEach(k => localStorage.removeItem(k));
