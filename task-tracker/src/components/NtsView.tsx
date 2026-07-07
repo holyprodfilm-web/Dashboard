@@ -26,7 +26,7 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   const [rounds, setRounds] = useState<NtsDocRound[]>([]);
   const [addresses, setAddresses] = useState<AddrItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabType>('dashboard');
+  const [tab, setTab] = useState<TabType>(() => (localStorage.getItem('nts_tab') as TabType) ?? 'dashboard');
   const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem('nts_searchQuery') ?? '');
   const [statusFilter, setStatusFilter] = useState<string>(() => localStorage.getItem('nts_statusFilter') ?? 'all');
   const [selectedEntry, setSelectedEntry] = useState<NtsEntry | null>(null);
@@ -73,7 +73,8 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   // Keep entriesRef in sync so the realtime closure can compare statuses without stale state
   useEffect(() => { entriesRef.current = entries; }, [entries]);
 
-  // Persist filters to localStorage
+  // Persist filters and tab to localStorage
+  useEffect(() => { localStorage.setItem('nts_tab', tab); }, [tab]);
   useEffect(() => { localStorage.setItem('nts_searchQuery', searchQuery); }, [searchQuery]);
   useEffect(() => { localStorage.setItem('nts_statusFilter', statusFilter); }, [statusFilter]);
 
