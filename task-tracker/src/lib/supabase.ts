@@ -7,7 +7,8 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
   throw new Error(
-    'Не заданы переменные окружения VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY. ' +
+    'Не заданы переменные окружения VITE_SUPABASE_ANON_KEY и ' +
+    'VITE_SUPABASE_URL (или VITE_API_URL для прокси-режима). ' +
     'Скопируйте .env.example в .env и заполните значения.'
   );
 }
