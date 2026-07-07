@@ -450,8 +450,10 @@ function ContractorsTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEd
                 </tr>
                 {openRow === r.name && (
                   <tr>
-                    <td colSpan={12} className="bg-slate-50 px-4 py-4">
-                      <ObjectsTable rows={r.objects} onEdit={onEdit} canEdit={canEdit} />
+                    <td colSpan={12} className="bg-slate-50 p-0">
+                      <div className="px-2 py-4">
+                        <ObjectsTable rows={r.objects} onEdit={onEdit} canEdit={canEdit} />
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -508,6 +510,14 @@ function CausesTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEdit: (
         const sortedCauses = Object.entries(blkData.byCause).sort((a, b) => b[1].length - a[1].length);
         const maxC = sortedCauses.length > 0 ? sortedCauses[0][1].length : 1;
 
+        // Which cause (if any) is expanded inside this block?
+        const openCauseInBlock = openKey?.startsWith(cfg.key + '|') ? openKey.slice(cfg.key.length + 1) : null;
+        const openCauseItems   = openCauseInBlock ? (blkData.byCause[openCauseInBlock] ?? []) : [];
+
+        // MOGAE expanded table (block 1 only)
+        const openMogaeArr = cfg.key === 'b1' && openMogae ? (blkData.byMogae[openMogae] ?? []) : [];
+        const openMogaeMeta = cfg.key === 'b1' && openMogae ? MOGAE_SPLIT.find(m => m.key === openMogae) : null;
+
         return (
           <div key={cfg.key} className="rounded-2xl overflow-hidden shadow-sm border border-slate-200">
             {/* Block header */}
@@ -527,70 +537,85 @@ function CausesTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEdit: (
                 Нет объектов в этом блоке
               </div>
             ) : (
-              <div className="bg-white px-6 py-4 space-y-3">
+              <div className="bg-white">
 
-                {/* МОГЭ sub-split (block 1 only) */}
+                {/* МОГЭ sub-split tiles (block 1 only) */}
                 {cfg.key === 'b1' && (
-                  <div className="grid grid-cols-3 gap-3 p-4 bg-[#fff5f5] rounded-xl border border-[#f0d0d0] mb-2">
-                    <div className="col-span-3 text-xs font-bold text-[#d63030] uppercase tracking-wide mb-1">
-                      📋 Разбивка: статус захода в МОГЭ
-                    </div>
-                    {MOGAE_SPLIT.map(ms => {
-                      const arr = blkData.byMogae[ms.key] || [];
-                      const pct = blkData.items.length > 0 ? Math.round(arr.length / blkData.items.length * 100) : 0;
-                      const isOpen = openMogae === ms.key;
-                      return (
-                        <div key={ms.key}>
+                  <div className="px-6 pt-4 pb-2">
+                    <div className="grid grid-cols-4 gap-3 p-4 bg-[#fff5f5] rounded-xl border border-[#f0d0d0]">
+                      <div className="col-span-4 text-xs font-bold text-[#d63030] uppercase tracking-wide mb-1">
+                        📋 Разбивка: статус захода в МОГЭ
+                      </div>
+                      {MOGAE_SPLIT.map(ms => {
+                        const arr = blkData.byMogae[ms.key] || [];
+                        const pct = blkData.items.length > 0 ? Math.round(arr.length / blkData.items.length * 100) : 0;
+                        const isOpen = openMogae === ms.key;
+                        return (
                           <button
+                            key={ms.key}
                             onClick={() => setOpenMogae(isOpen ? null : ms.key)}
-                            className="w-full rounded-xl p-3 border-2 text-left transition hover:-translate-y-0.5 hover:shadow-md"
-                            style={{ background: ms.bg, borderColor: ms.border, color: ms.color }}>
+                            className={`w-full rounded-xl p-3 border-2 text-left transition hover:-translate-y-0.5 hover:shadow-md
+                              ${isOpen ? 'ring-2 ring-offset-1 shadow-md' : ''}`}
+                            style={{ background: ms.bg, borderColor: ms.border, color: ms.color,
+                              ['--tw-ring-color' as string]: ms.border }}>
                             <div className="text-xs font-bold">{ms.label}</div>
                             <div className="text-3xl font-black leading-none mt-1">{arr.length}</div>
                             <div className="text-xs opacity-70 mt-1">{pct}% объектов</div>
                           </button>
-                          {isOpen && arr.length > 0 && (
-                            <div className="mt-2 border rounded-xl overflow-hidden" style={{ borderColor: ms.border }}>
-                              <ObjectsTable rows={arr} onEdit={onEdit} canEdit={canEdit} />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* MOGAE expanded table — full card width */}
+                {openMogaeMeta && openMogaeArr.length > 0 && (
+                  <div className="border-t border-slate-200">
+                    <div className="px-6 py-2 text-xs font-semibold"
+                      style={{ background: openMogaeMeta.bg, color: openMogaeMeta.color }}>
+                      {openMogaeMeta.label} — {openMogaeArr.length} объектов
+                    </div>
+                    <div className="px-4 py-4">
+                      <ObjectsTable rows={openMogaeArr} onEdit={onEdit} canEdit={canEdit} />
+                    </div>
                   </div>
                 )}
 
                 {/* Causes list */}
-                {sortedCauses.length === 0 ? (
-                  <div className="text-sm text-slate-400 italic py-2">Типовые причины не указаны</div>
-                ) : (
-                  <div className="space-y-1">
-                    {sortedCauses.map(([cause, items]) => {
-                      const pct = Math.round((items.length / maxC) * 100);
-                      const key = cfg.key + '|' + cause;
-                      const open = openKey === key;
-                      return (
-                        <div key={cause}>
-                          <div
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer border transition
-                              ${open ? 'bg-slate-50 border-slate-200' : 'border-transparent hover:bg-slate-50 hover:border-slate-200'}`}
-                            onClick={() => setOpenKey(open ? null : key)}
-                          >
-                            <span className="flex-1 text-sm text-slate-700">{cause}</span>
-                            <div className="w-36 h-2.5 bg-slate-100 rounded-full overflow-hidden flex-shrink-0">
-                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: cfg.color }} />
-                            </div>
-                            <span className="text-sm font-bold w-7 text-right" style={{ color: cfg.color }}>{items.length}</span>
-                            {open ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
-                          </div>
-                          {open && (
-                            <div className="mt-1 mb-2 border border-slate-200 rounded-xl overflow-hidden">
-                              <ObjectsTable rows={items} onEdit={onEdit} canEdit={canEdit} />
-                            </div>
-                          )}
+                <div className={`px-6 pb-4 ${cfg.key === 'b1' ? 'pt-2' : 'pt-4'} space-y-1`}>
+                  {sortedCauses.length === 0 ? (
+                    <div className="text-sm text-slate-400 italic py-2">Типовые причины не указаны</div>
+                  ) : sortedCauses.map(([cause, items]) => {
+                    const pct = Math.round((items.length / maxC) * 100);
+                    const key = cfg.key + '|' + cause;
+                    const open = openKey === key;
+                    return (
+                      <div
+                        key={cause}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer border transition
+                          ${open ? 'bg-slate-50 border-slate-200' : 'border-transparent hover:bg-slate-50 hover:border-slate-200'}`}
+                        onClick={() => setOpenKey(open ? null : key)}
+                      >
+                        <span className="flex-1 text-sm text-slate-700">{cause}</span>
+                        <div className="w-36 h-2.5 bg-slate-100 rounded-full overflow-hidden flex-shrink-0">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: cfg.color }} />
                         </div>
-                      );
-                    })}
+                        <span className="text-sm font-bold w-7 text-right" style={{ color: cfg.color }}>{items.length}</span>
+                        {open ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Expanded cause objects — full card width */}
+                {openCauseInBlock && openCauseItems.length > 0 && (
+                  <div className="border-t border-slate-200">
+                    <div className="px-6 py-2 bg-slate-50 text-xs font-semibold text-slate-600">
+                      {openCauseInBlock} — {openCauseItems.length} объектов
+                    </div>
+                    <div className="px-4 py-4">
+                      <ObjectsTable rows={openCauseItems} onEdit={onEdit} canEdit={canEdit} />
+                    </div>
                   </div>
                 )}
               </div>
@@ -605,66 +630,96 @@ function CausesTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEdit: (
 // ── Dynamics tab ──────────────────────────────────────────────────────────────
 
 function DynamicsTab({ data }: { data: ClosureObject[] }) {
-  const snapshots = useMemo(() => {
-    const map: Record<string, { total: number; paid: number; partial: number; not_paid: number }> = {};
-    data.forEach(r => {
-      const d = r.snapshot_date;
-      if (!map[d]) map[d] = { total: 0, paid: 0, partial: 0, not_paid: 0 };
-      map[d].total++;
-      if (r.payment_status === 'paid') map[d].paid++;
-      else if (r.payment_status === 'partial') map[d].partial++;
-      else if (r.payment_status === 'not_paid') map[d].not_paid++;
-    });
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([date, v]) => ({
-      date,
-      label: new Date(date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }),
-      ...v,
-      paidPct: Math.round((v.paid / (v.total || 1)) * 100),
-    }));
-  }, [data]);
+  // Показываем только объекты, оплаченные за последние 30 дней (с ~7 июня)
+  // Используем локальную дату (не UTC) чтобы избежать сдвига часового пояса
+  const cutoff = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
 
-  if (snapshots.length === 0)
-    return <div className="text-center text-slate-400 py-16">Нет данных о срезах. Добавьте объекты с разными датами snapshot_date.</div>;
+  const { timeline, recentPaid } = useMemo(() => {
+    const recent = data.filter(r =>
+      r.payment_status === 'paid' &&
+      r.payment_date &&
+      r.payment_date >= cutoff
+    );
+    const byDate: Record<string, ClosureObject[]> = {};
+    for (const r of recent) {
+      const d = r.payment_date!;
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(r);
+    }
+    const tl = Object.entries(byDate)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, objects]) => ({
+        date,
+        label: new Date(date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }),
+        count: objects.length,
+        objects,
+      }));
+    return { timeline: tl, recentPaid: recent };
+  }, [data, cutoff]);
 
-  const maxTotal = Math.max(1, ...snapshots.map(s => s.total));
-  const last = snapshots[snapshots.length - 1];
-  const first = snapshots[0];
+  const cutoffLabel = new Date(`${cutoff}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  const todayLabel  = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+
+  if (recentPaid.length === 0) {
+    return (
+      <div className="text-center text-slate-400 py-16">
+        <div className="text-4xl mb-3">📊</div>
+        <p className="font-medium">Нет оплаченных объектов за последние 30 дней</p>
+        <p className="text-sm mt-1">Период: с {cutoffLabel} по {todayLabel}</p>
+      </div>
+    );
+  }
+
+  const maxCount = Math.max(1, ...timeline.map(s => s.count));
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-5 shadow-sm border-t-4 border-emerald-400">
-          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Оплачено на {last.label}</div>
-          <div className="text-4xl font-black text-emerald-600">{last.paid}</div>
+          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Оплачено за 30 дней</div>
+          <div className="text-4xl font-black text-emerald-600">{recentPaid.length}</div>
+          <div className="text-xs text-slate-400 mt-1">с {cutoffLabel}</div>
         </div>
         <div className="bg-white rounded-2xl p-5 shadow-sm border-t-4 border-teal-400">
-          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Прирост за период</div>
-          <div className="text-4xl font-black text-teal-600">+{last.paid - first.paid}</div>
-          <div className="text-xs text-slate-400">с {first.label}</div>
+          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Дней с оплатами</div>
+          <div className="text-4xl font-black text-teal-600">{timeline.length}</div>
+          <div className="text-xs text-slate-400 mt-1">уникальных дат</div>
         </div>
         <div className="bg-white rounded-2xl p-5 shadow-sm border-t-4 border-amber-400">
-          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Срезов данных</div>
-          <div className="text-4xl font-black text-amber-600">{snapshots.length}</div>
-        </div>
-        <div className="bg-white rounded-2xl p-5 shadow-sm border-t-4 border-[#E93A58]">
-          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Не оплачено сейчас</div>
-          <div className="text-4xl font-black text-[#E93A58]">{last.not_paid}</div>
+          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Пик за день</div>
+          <div className="text-4xl font-black text-amber-600">{maxCount}</div>
+          <div className="text-xs text-slate-400 mt-1">
+            {timeline.find(s => s.count === maxCount)?.label ?? '—'}
+          </div>
         </div>
       </div>
 
+      {/* Bar chart */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-        <h3 className="text-sm font-bold text-[#8A4C08] uppercase tracking-wide mb-5">Динамика оплаты по срезам</h3>
+        <h3 className="text-sm font-bold text-[#8A4C08] uppercase tracking-wide mb-5">
+          Динамика оплат — с {cutoffLabel} по {todayLabel}
+        </h3>
         <div className="overflow-x-auto">
-          <div className="flex items-end gap-4 min-w-max pb-2" style={{ height: 200 }}>
-            {snapshots.map(s => {
-              const barH = Math.max(8, Math.round((s.paid / maxTotal) * 160));
+          <div className="flex items-end gap-3 min-w-max pb-2" style={{ height: 200 }}>
+            {timeline.map(s => {
+              const barH = Math.max(12, Math.round((s.count / maxCount) * 160));
               return (
                 <div key={s.date} className="flex flex-col items-center gap-1 group cursor-default">
-                  <div className="text-xs font-bold text-emerald-600 opacity-0 group-hover:opacity-100 transition">{s.paid}</div>
-                  <div className="w-14 rounded-t-lg transition-all" style={{ height: barH, background: '#059669' }}
-                    title={`${s.label}: ${s.paid} оплачено из ${s.total}`} />
+                  <div className="text-xs font-bold text-emerald-600 opacity-0 group-hover:opacity-100 transition">
+                    {s.count}
+                  </div>
+                  <div
+                    className="w-12 rounded-t-lg transition-all"
+                    style={{ height: barH, background: '#059669' }}
+                    title={`${s.label}: ${s.count} объектов`}
+                  />
                   <div className="text-xs text-slate-500 text-center whitespace-nowrap">{s.label}</div>
-                  <div className="text-xs font-semibold text-emerald-600">{s.paidPct}%</div>
+                  <div className="text-xs font-semibold text-emerald-600">{s.count}</div>
                 </div>
               );
             })}
@@ -672,33 +727,38 @@ function DynamicsTab({ data }: { data: ClosureObject[] }) {
         </div>
       </div>
 
+      {/* Table of paid objects */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+          <h3 className="text-xs font-bold text-[#8A4C08] uppercase tracking-wide">
+            Объекты, оплаченные за 30 дней ({recentPaid.length})
+          </h3>
+        </div>
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-xs text-slate-600 uppercase">
+          <thead className="bg-slate-50 text-xs text-slate-600 uppercase border-b border-slate-100">
             <tr>
-              <th className="px-5 py-3 text-left font-semibold">Дата среза</th>
-              <th className="px-5 py-3 text-right font-semibold">Всего</th>
-              <th className="px-5 py-3 text-right font-semibold text-emerald-600">Оплачено</th>
-              <th className="px-5 py-3 text-right font-semibold text-amber-600">Частично</th>
-              <th className="px-5 py-3 text-right font-semibold text-[#E93A58]">Не оплачено</th>
-              <th className="px-5 py-3 text-left font-semibold">Прогресс</th>
+              <th className="px-5 py-3 text-left font-semibold">Дата оплаты</th>
+              <th className="px-5 py-3 text-left font-semibold">Объектов</th>
+              <th className="px-5 py-3 text-left font-semibold">ОМСУ</th>
+              <th className="px-5 py-3 text-left font-semibold">Мероприятия</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {snapshots.map(s => (
-              <tr key={s.date} className="hover:bg-slate-50 transition">
-                <td className="px-5 py-3 font-medium text-slate-700">{new Date(s.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
-                <td className="px-5 py-3 text-right font-bold">{s.total}</td>
-                <td className="px-5 py-3 text-right text-emerald-600 font-semibold">{s.paid}</td>
-                <td className="px-5 py-3 text-right text-amber-600 font-semibold">{s.partial}</td>
-                <td className="px-5 py-3 text-right text-[#E93A58] font-semibold">{s.not_paid}</td>
+            {timeline.map(s => (
+              <tr key={s.date} className="hover:bg-slate-50 transition align-top">
+                <td className="px-5 py-3 font-semibold text-emerald-700 whitespace-nowrap">
+                  {new Date(s.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </td>
                 <td className="px-5 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-slate-100 rounded-full h-2 max-w-[120px]">
-                      <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${s.paidPct}%` }} />
-                    </div>
-                    <span className="text-xs text-slate-500 w-8">{s.paidPct}%</span>
-                  </div>
+                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 font-black text-sm">
+                    {s.count}
+                  </span>
+                </td>
+                <td className="px-5 py-3 text-xs text-slate-600">
+                  {[...new Set(s.objects.map(o => o.omsu))].join(', ')}
+                </td>
+                <td className="px-5 py-3 text-xs text-slate-500 max-w-xs">
+                  {s.objects.map(o => o.object_name).join(' · ')}
                 </td>
               </tr>
             ))}
@@ -1189,14 +1249,9 @@ export default function ClosureView() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-2xl font-black text-slate-900">Закрытие объектов</h2>
-          {latestDate && (
-            <p className="text-sm text-slate-500 mt-0.5">
-              Актуальные данные: <span className="font-semibold text-slate-700">
-                {new Date(latestDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </span>
-              {' '}·{' '}{latest.length} объектов
-            </p>
-          )}
+          <p className="text-sm text-slate-500 mt-0.5">
+            {latest.length} объектов
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {canEdit && (
