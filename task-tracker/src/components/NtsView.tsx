@@ -74,6 +74,13 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
 
   useEffect(() => { void loadData(); }, [loadData]);
 
+  // One-time migration: remove old unscoped localStorage keys left over before user-scoped keys were introduced
+  useEffect(() => {
+    localStorage.removeItem('nts_tab');
+    localStorage.removeItem('nts_searchQuery');
+    localStorage.removeItem('nts_statusFilter');
+  }, []);
+
   // Keep entriesRef in sync so the realtime closure can compare statuses without stale state
   useEffect(() => { entriesRef.current = entries; }, [entries]);
 
