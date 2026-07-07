@@ -269,6 +269,8 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
     return matchSearch && matchStatus;
   });
 
+  const isFiltered = searchQuery !== '' || statusFilter !== 'all';
+
   const excessPct = (e: NtsEntry) => {
     if (!e.contract_cost) return 0;
     return ((e.pre_nts_cost - e.contract_cost) / e.contract_cost * 100);
@@ -318,7 +320,7 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
       <div className="flex gap-1 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
         {([
           { id: 'dashboard', label: 'Дашборд', icon: <BarChart3 size={15} /> },
-          { id: 'list',      label: `Список (${total})`, icon: <FileText size={15} /> },
+          { id: 'list',      label: isFiltered ? `Список (${filtered.length} из ${total})` : `Список (${total})`, icon: <FileText size={15} /> },
         ] as const).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`px-5 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
@@ -544,6 +546,17 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
               </button>
             </div>
           </div>
+
+          {isFiltered && (
+            <div className="mb-3 text-sm text-slate-500">
+              Показано <span className="font-semibold text-slate-700">{filtered.length}</span> из <span className="font-semibold text-slate-700">{total}</span>
+            </div>
+          )}
+          {!isFiltered && (
+            <div className="mb-3 text-sm text-slate-400">
+              Все записи: <span className="font-semibold text-slate-600">{total}</span>
+            </div>
+          )}
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
