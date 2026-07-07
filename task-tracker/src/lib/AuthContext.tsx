@@ -22,6 +22,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Prefixes used for user-scoped localStorage keys across the app
+  const SCOPED_KEY_PREFIXES = [
+    'objectsSearch_',
+    'nts_tab_',
+    'nts_searchQuery_',
+    'nts_statusFilter_',
+  ];
+
+  /**
+   * Remove any scoped localStorage keys whose suffix does not match `currentUserId`.
+   * This catches blank-suffix keys (suffix = '') left over from sessions where
+   * currentUserId was undefined, as well as keys belonging to a different account.
+   */
+  const pruneStaleUserKeys = (currentUserId: string) => {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      for (const prefix of SCOPED_KEY_PREFIXES) {
+        if (key.startsWith(prefix)) {
+          const suffix = key.slice(prefix.length);
+          if (suffix !== currentUserId) {
+            keysToRemove.push(key);
+          }
+          break;
+        }
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  };
+
   const loadProfile = async (userId: string) => {
     const { data, error } = await supabase
       .from('profiles')
@@ -46,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        pruneStaleUserKeys(session.user.id);
         loadProfile(session.user.id);
       } else {
         setLoading(false);
@@ -58,6 +90,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('objectsSearch');
         localStorage.removeItem('objectsLocalStatusFilter');
         localStorage.removeItem('lastUserId');
+      }
+      if (event === 'SIGNED_IN' && session?.user) {
+        pruneStaleUserKeys(session.user.id);
       }
       setSession(session);
       setUser(session?.user ?? null);
