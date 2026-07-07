@@ -548,8 +548,14 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
           </div>
 
           {isFiltered && (
-            <div className="mb-3 text-sm text-slate-500">
-              Показано <span className="font-semibold text-slate-700">{filtered.length}</span> из <span className="font-semibold text-slate-700">{total}</span>
+            <div className="mb-3 flex items-center gap-3 text-sm text-slate-500">
+              <span>Показано <span className="font-semibold text-slate-700">{filtered.length}</span> из <span className="font-semibold text-slate-700">{total}</span></span>
+              <button
+                onClick={() => { setSearchQuery(''); setStatusFilter('all'); }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600 transition"
+              >
+                ✕ Сбросить фильтры
+              </button>
             </div>
           )}
           {!isFiltered && (
