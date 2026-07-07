@@ -34,8 +34,9 @@ const FIELD_LABELS: Record<string, string> = {
   typical_block:     'Блок причин',
   typical_cause:     'Причина МОГЭ',
   typical_cause_smr: 'Причина СМР',
-  typical_cause_idks:'Причина ИД/КС',
-  payment_reason:    'Обоснование оплаты',
+  typical_cause_idks:    'Причина ИД/КС',
+  typical_cause_payment: 'Причина оплаты',
+  payment_reason:        'Обоснование оплаты',
   payment_date:      'Дата оплаты',
   actions:           'Действия',
 };
@@ -75,8 +76,8 @@ const CAUSE_BLOCKS: Array<{
     getCause: (r) => r.typical_cause_idks || 'Не указана' },
   { num: 4, key: 'b4', color: '#1b5e8a', icon: '💰',
     title: 'Ожидаются заявки от ОМСУ на оплату',
-    colSource: 'Обоснование оплаты',
-    getCause: (r) => r.payment_reason || 'Не указана' },
+    colSource: 'Типовая причина оплаты',
+    getCause: (r) => r.typical_cause_payment || 'Не указана' },
 ];
 
 // ── Formatters ────────────────────────────────────────────────────────────────

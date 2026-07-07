@@ -23,6 +23,7 @@ export interface ClosureObject {
   typical_cause: string | null;
   typical_cause_smr: string | null;
   typical_cause_idks: string | null;
+  typical_cause_payment: string | null;
   payment_reason: string | null;
   payment_date: string | null;
   actions: string;

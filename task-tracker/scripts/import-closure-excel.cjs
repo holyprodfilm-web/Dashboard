@@ -125,6 +125,7 @@ for (let i = 2; i < rows.length; i++) {
     contract_sum:      normalizeSum(r[13]),
     paid_sum:          normalizeSum(r[14]),
     remaining_sum:     normalizeSum(r[15]),
+    typical_cause_payment: String(r[17] ?? '').trim() || null,
     typical_cause_idks: String(r[22] ?? '').trim() || null,
     id_ks_submitted:   String(r[18] ?? '').trim() || null,
     payment_reason:    String(r[24] ?? '').trim() || null,
@@ -181,6 +182,7 @@ function rowToValues(row) {
     row.contract_sum,
     row.paid_sum,
     row.remaining_sum,
+    esc(row.typical_cause_payment),
     esc(row.typical_cause_idks),
     esc(row.id_ks_submitted),
     esc(row.payment_reason),
@@ -193,7 +195,7 @@ function rowToValues(row) {
 
 const COLS = `uin,omsu,object_name,contractor,object_type,mogae_approved,mogae_status,
 typical_cause,smr_completed,typical_cause_smr,smr_pct,payment_status,
-contract_sum,paid_sum,remaining_sum,typical_cause_idks,id_ks_submitted,
+contract_sum,paid_sum,remaining_sum,typical_cause_payment,typical_cause_idks,id_ks_submitted,
 payment_reason,actions,payment_date,comment,snapshot_date`.replace(/\n/g, '');
 
 async function run() {

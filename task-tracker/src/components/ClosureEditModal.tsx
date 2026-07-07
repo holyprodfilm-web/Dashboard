@@ -17,10 +17,11 @@ const FIELD_LABELS: Record<string, string> = {
   smr_completed:      'СМР завершено',
   smr_pct:            'СГ%',
   id_ks_submitted:    'ИД и КС сданы',
-  typical_block:      'Блок причин',
-  typical_cause:      'Причина МОГЭ',
-  typical_cause_smr:  'Причина СМР',
-  typical_cause_idks: 'Причина ИД/КС',
+  typical_block:         'Блок причин',
+  typical_cause:         'Причина МОГЭ',
+  typical_cause_smr:     'Причина СМР',
+  typical_cause_idks:    'Причина ИД/КС',
+  typical_cause_payment: 'Причина оплаты',
   payment_reason:     'Обоснование оплаты',
   payment_date:       'Дата оплаты',
   actions:            'Действия',
@@ -40,41 +41,57 @@ const MOGAE_OPTIONS: Array<{ value: MogaeStatus; label: string }> = [
 ];
 
 // ── Типовые причины по блокам ─────────────────────────────────────────────────
+// Значения взяты из столбцов Excel: H=МОГЭ, K=СМР, W=ИД/КС, R=Оплата
 
 const CAUSE_MOGAE_OPTIONS = [
   'Долгая передача исходных данных от ОМСУ подрядчику',
-  'Корректировка ТЗ',
-  'Оформление ТС в муниципальную собственность',
-  'Низкий темп разработки ПИР подрядчиком',
-  'Длительное согласование ПИР с Заказчиком',
   'Длительное прохождение НТС',
+  'Длительное согласование ПИР с Заказчиком',
+  'Корректировка ТЗ',
   'Необходимость проведения НТС',
-  'Отсутствие тех.прис',
+  'Низкий темп разработки ПИР подрядчиком',
   'Отсутствие ГПЗУ на земельный участок',
-  'Проведение дополнительных инж. изысканий в соответствии с ЗНП',
+  'Отсутствие тех.приса',
+  'Оформление ТС в муниципальную собственность',
   'Повторное МОГЭ, корректировка объемов',
+  'Проведение дополнительных инж. изысканий в соответствии с ЗНП',
   'Смена проектировщика',
   'Финансовые трудности у ПО',
 ];
 
 const CAUSE_SMR_OPTIONS = [
-  'Отсутствие тех.прис',
-  'Финансовые трудности подрядчиков',
-  'Низкий темп производства работ подрядной организацией',
-  'Расторжение контракта (новый подрядчик)',
-  'Попадание в зоны ЗОУИТ',
   'Выявление доп. объема работ',
-  'Длительное согласование с ведомствами (Ростехнадзор, МОГ и тд)',
   'Длительное получение РНР, допусков на работы',
+  'Длительное согласование с ведомствами (Ростехнадзор, МОГ и тд)',
+  'Низкий темп производства работ подрядной',
+  'Отсутствие тех.прис',
+  'Попадание в зоны ЗОУИТ',
+  'Расторжение контракта (новый подрядчик)',
+  'Финансовые трудности подрядчиков',
 ];
 
 const CAUSE_IDKS_OPTIONS = [
-  'Замечания не устранимы, требуется повторный заход в МОГЭ',
-  'Исполнительная документация не подписана с Заказчиком',
-  'ИД и КС-2 не переданы в УТНКР',
-  'Низкий темп устранения замечания УТНКР',
   'Заказчик выставляет замечания подрядчику',
+  'Замечания не устранимы, требуется повторный заход в МОГЭ',
+  'ИД и КС-2 не переданы в УТНКР',
+  'Исполнительная документация не подписана с Заказчиком',
+  'Исполнительная документация не подписана с Заказчиком, ИД и КС-2 не переданы в УТНКР',
+  'Низкий темп устранения замечания УТНКР',
+  'Низкий темп устранения замечания УТНКР, Исполнительная документация не подписана с Заказчиком',
+  'Низкий темп устранения замечания УТНКР, Отсутствуют акты скрытых работ',
   'Спор из-за объемов выполненных работ',
+];
+
+const CAUSE_PAYMENT_OPTIONS = [
+  '65.1, Формирование пакета документов для оплаты',
+  'Формирование пакета документов для оплаты',
+  'ИД, КС принята УТНКР, заказчик выставляет доп.требования к перевыполнению Благоустройства',
+  'Не доведены лимиты от ГРБС',
+  'Не завершены СМР',
+  'Низкий темп подгрузки документов в ПИК',
+  'Отсутствие доп.ника',
+  'Передача объекта в собственность МО',
+  'контракт расторгнут',
 ];
 
 /** Выпадающий список типовых причин с возможностью выбрать «Другое» */
@@ -151,7 +168,8 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
   const [typicalBlock]                    = useState(record.typical_block ?? '');
   const [cause, setCause]                 = useState(record.typical_cause ?? '');
   const [causeSmr, setCauseSmr]           = useState(record.typical_cause_smr ?? '');
-  const [causeIdks, setCauseIdks]         = useState(record.typical_cause_idks ?? '');
+  const [causeIdks, setCauseIdks]           = useState(record.typical_cause_idks ?? '');
+  const [causePayment, setCausePayment]     = useState(record.typical_cause_payment ?? '');
   const [paymentReason, setPaymentReason] = useState(record.payment_reason ?? '');
   const [paymentDate, setPaymentDate]     = useState(record.payment_date ?? '');
   const [actions, setActions]             = useState(record.actions ?? '');
@@ -200,9 +218,10 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
       smr_pct:           smrPct || null,
       id_ks_submitted:   idKs || null,
       typical_block:     typicalBlock || null,
-      typical_cause:     cause || null,
-      typical_cause_smr:  causeSmr || null,
-      typical_cause_idks: causeIdks || null,
+      typical_cause:         cause || null,
+      typical_cause_smr:     causeSmr || null,
+      typical_cause_idks:    causeIdks || null,
+      typical_cause_payment: causePayment || null,
       payment_reason: paymentReason || null,
       payment_date:   paymentDate || null,
       actions,
@@ -228,10 +247,11 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
     checkField('smr_pct',           record.smr_pct,           updates.smr_pct);
     checkField('id_ks_submitted',   record.id_ks_submitted,   updates.id_ks_submitted);
     checkField('typical_block',     record.typical_block,     updates.typical_block);
-    checkField('typical_cause',     record.typical_cause,     updates.typical_cause);
-    checkField('typical_cause_smr',  record.typical_cause_smr,  updates.typical_cause_smr);
-    checkField('typical_cause_idks', record.typical_cause_idks, updates.typical_cause_idks);
-    checkField('payment_reason',    record.payment_reason,    updates.payment_reason);
+    checkField('typical_cause',         record.typical_cause,         updates.typical_cause);
+    checkField('typical_cause_smr',     record.typical_cause_smr,     updates.typical_cause_smr);
+    checkField('typical_cause_idks',    record.typical_cause_idks,    updates.typical_cause_idks);
+    checkField('typical_cause_payment', record.typical_cause_payment, updates.typical_cause_payment);
+    checkField('payment_reason',        record.payment_reason,        updates.payment_reason);
     checkField('payment_date',      record.payment_date,      updates.payment_date);
     checkField('actions',           record.actions,           updates.actions);
 
@@ -486,6 +506,13 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
                 value={causeIdks}
                 onChange={setCauseIdks}
                 options={CAUSE_IDKS_OPTIONS}
+              />
+              <CauseSelect
+                label="Блок 4 — Причина по оплате"
+                emoji="💳"
+                value={causePayment}
+                onChange={setCausePayment}
+                options={CAUSE_PAYMENT_OPTIONS}
               />
             </div>
           </div>
