@@ -251,7 +251,10 @@ export default function MeetingDetailView({
           meetingId={meetingId}
           availableObjects={availableObjects}
           onClose={() => setShowTaskModal(false)}
-          onCreated={() => { setToast('Поручение создано'); }}
+          onCreated={() => {
+            setToast('Поручение создано');
+            onReload(); // принудительно синхронизируем список (fallback если real-time не работает)
+          }}
         />
       )}
 

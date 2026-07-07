@@ -165,7 +165,10 @@ function AppContent() {
         (payload) => {
           setTasks((prev) => {
             if (payload.eventType === 'INSERT') {
-              return [...prev, payload.new as Task];
+              const incoming = payload.new as Task;
+              // Deduplicate: onReload() may have already added this task
+              if (prev.some((t) => t.id === incoming.id)) return prev;
+              return [...prev, incoming];
             }
             if (payload.eventType === 'UPDATE') {
               return prev.map((t) =>
