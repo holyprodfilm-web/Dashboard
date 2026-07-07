@@ -26,9 +26,13 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   const [rounds, setRounds] = useState<NtsDocRound[]>([]);
   const [addresses, setAddresses] = useState<AddrItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabType>(() => (localStorage.getItem('nts_tab') as TabType) ?? 'dashboard');
-  const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem('nts_searchQuery') ?? '');
-  const [statusFilter, setStatusFilter] = useState<string>(() => localStorage.getItem('nts_statusFilter') ?? 'all');
+  const tabKey          = `nts_tab_${currentUserId ?? ''}`;
+  const searchQueryKey  = `nts_searchQuery_${currentUserId ?? ''}`;
+  const statusFilterKey = `nts_statusFilter_${currentUserId ?? ''}`;
+
+  const [tab, setTab] = useState<TabType>(() => (localStorage.getItem(tabKey) as TabType) ?? 'dashboard');
+  const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem(searchQueryKey) ?? '');
+  const [statusFilter, setStatusFilter] = useState<string>(() => localStorage.getItem(statusFilterKey) ?? 'all');
   const [selectedEntry, setSelectedEntry] = useState<NtsEntry | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [statusChangeToast, setStatusChangeToast] = useState<string | null>(null);
@@ -73,10 +77,10 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   // Keep entriesRef in sync so the realtime closure can compare statuses without stale state
   useEffect(() => { entriesRef.current = entries; }, [entries]);
 
-  // Persist filters and tab to localStorage
-  useEffect(() => { localStorage.setItem('nts_tab', tab); }, [tab]);
-  useEffect(() => { localStorage.setItem('nts_searchQuery', searchQuery); }, [searchQuery]);
-  useEffect(() => { localStorage.setItem('nts_statusFilter', statusFilter); }, [statusFilter]);
+  // Persist filters and tab to localStorage (scoped per user)
+  useEffect(() => { localStorage.setItem(tabKey, tab); }, [tabKey, tab]);
+  useEffect(() => { localStorage.setItem(searchQueryKey, searchQuery); }, [searchQueryKey, searchQuery]);
+  useEffect(() => { localStorage.setItem(statusFilterKey, statusFilter); }, [statusFilterKey, statusFilter]);
 
   // Real-time subscription: keep NTS tables in sync when other users make changes
   useEffect(() => {
