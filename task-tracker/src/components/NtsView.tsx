@@ -27,8 +27,8 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
   const [addresses, setAddresses] = useState<AddrItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabType>('dashboard');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem('nts_searchQuery') ?? '');
+  const [statusFilter, setStatusFilter] = useState<string>(() => localStorage.getItem('nts_statusFilter') ?? 'all');
   const [selectedEntry, setSelectedEntry] = useState<NtsEntry | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [statusChangeToast, setStatusChangeToast] = useState<string | null>(null);
@@ -72,6 +72,10 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
 
   // Keep entriesRef in sync so the realtime closure can compare statuses without stale state
   useEffect(() => { entriesRef.current = entries; }, [entries]);
+
+  // Persist filters to localStorage
+  useEffect(() => { localStorage.setItem('nts_searchQuery', searchQuery); }, [searchQuery]);
+  useEffect(() => { localStorage.setItem('nts_statusFilter', statusFilter); }, [statusFilter]);
 
   // Real-time subscription: keep NTS tables in sync when other users make changes
   useEffect(() => {
@@ -551,7 +555,7 @@ export default function NtsView({ profiles, currentUserId, currentUserRole, isMo
             <div className="mb-3 flex items-center gap-3 text-sm text-slate-500">
               <span>Показано <span className="font-semibold text-slate-700">{filtered.length}</span> из <span className="font-semibold text-slate-700">{total}</span></span>
               <button
-                onClick={() => { setSearchQuery(''); setStatusFilter('all'); }}
+                onClick={() => { setSearchQuery(''); setStatusFilter('all'); localStorage.removeItem('nts_searchQuery'); localStorage.removeItem('nts_statusFilter'); }}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600 transition"
               >
                 ✕ Сбросить фильтры
