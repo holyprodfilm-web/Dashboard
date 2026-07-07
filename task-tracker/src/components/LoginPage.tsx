@@ -39,7 +39,12 @@ export default function LoginPage() {
         }
       }
     } catch (err: unknown) {
-      setError('Произошла ошибка: ' + (err instanceof Error ? err.message : String(err)));
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(
+        msg === 'Failed to fetch'
+          ? 'Не удалось подключиться к серверу. Проверьте интернет-соединение и попробуйте ещё раз.'
+          : 'Произошла ошибка: ' + msg
+      );
     }
 
     setLoading(false);
