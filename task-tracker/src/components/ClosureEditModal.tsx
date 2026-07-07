@@ -173,6 +173,11 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
   const [paymentReason, setPaymentReason] = useState(record.payment_reason ?? '');
   const [paymentDate, setPaymentDate]     = useState(record.payment_date ?? '');
   const [actions, setActions]             = useState(record.actions ?? '');
+  // Реквизиты контракта
+  const [contractNumber, setContractNumber]       = useState(record.contract_number ?? '');
+  const [federalLaw, setFederalLaw]               = useState(record.federal_law ?? '');
+  const [contractLink, setContractLink]           = useState(record.contract_link ?? '');
+  const [pikContractLink, setPikContractLink]     = useState(record.pik_contract_link ?? '');
 
   const [saving, setSaving]     = useState(false);
   const [saveErr, setSaveErr]   = useState('');
@@ -225,6 +230,10 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
       payment_reason: paymentReason || null,
       payment_date:   paymentDate || null,
       actions,
+      contract_number:   contractNumber || null,
+      federal_law:       federalLaw || null,
+      contract_link:     contractLink || null,
+      pik_contract_link: pikContractLink || null,
     };
 
     // Compute diff for audit log
@@ -254,6 +263,10 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
     checkField('payment_reason',        record.payment_reason,        updates.payment_reason);
     checkField('payment_date',      record.payment_date,      updates.payment_date);
     checkField('actions',           record.actions,           updates.actions);
+    checkField('contract_number',   record.contract_number,   updates.contract_number);
+    checkField('federal_law',       record.federal_law,       updates.federal_law);
+    checkField('contract_link',     record.contract_link,     updates.contract_link);
+    checkField('pik_contract_link', record.pik_contract_link, updates.pik_contract_link);
 
     if (changedFields.length === 0) { setSaving(false); onClose(); return; }
 
@@ -293,7 +306,7 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
         <div className="flex items-start justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex-1 min-w-0 pr-4">
             <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-0.5">
-              {record.omsu}
+              {record.omsu}{record.uin ? <span className="ml-2 font-mono text-teal-600">УИН: {record.uin}</span> : null}
             </p>
             <h3 className="text-base font-bold text-slate-900 leading-snug line-clamp-2">
               {record.object_name}
@@ -514,6 +527,41 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
                 onChange={setCausePayment}
                 options={CAUSE_PAYMENT_OPTIONS}
               />
+            </div>
+          </div>
+
+          {/* Contract details */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              📄 Реквизиты контракта
+            </label>
+            <div className="space-y-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Номер контракта</label>
+                  <input value={contractNumber} onChange={e => setContractNumber(e.target.value)}
+                    placeholder="№ контракта"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Какое ФЗ</label>
+                  <input value={federalLaw} onChange={e => setFederalLaw(e.target.value)}
+                    placeholder="44-ФЗ / 223-ФЗ / …"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Ссылка на контракт (zakupki.gov)</label>
+                <input type="url" value={contractLink} onChange={e => setContractLink(e.target.value)}
+                  placeholder="https://zakupki.gov.ru/…"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Ссылка на контракт в ПИК</label>
+                <input type="url" value={pikContractLink} onChange={e => setPikContractLink(e.target.value)}
+                  placeholder="https://pik.ru/…"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
+              </div>
             </div>
           </div>
 

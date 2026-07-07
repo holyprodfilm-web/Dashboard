@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
+import { usePermissions } from '../lib/usePermissions';
 import type { ClosureObject, ClosureChange, PaymentStatus } from '../types';
 import ClosureEditModal from './ClosureEditModal';
 import ClosureImportModal from './ClosureImportModal';
@@ -244,39 +245,83 @@ function ObjectsTable({
   rows,
   onEdit,
   canEdit = false,
+  userId,
 }: {
   rows: ClosureObject[];
   onEdit?: (r: ClosureObject) => void;
   canEdit?: boolean;
+  userId?: string;
 }) {
   const [q, setQ] = useState('');
+  const [omsuFilter, setOmsuFilter] = useState('');
+
+  const omsuOptions = useMemo(() =>
+    [...new Set(rows.map(r => r.omsu).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
+  [rows]);
+
+  const favKey = `closure_fav_${userId ?? 'anon'}`;
+  const [favorites, setFavorites] = useState<Set<number>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(favKey) || '[]')); }
+    catch { return new Set(); }
+  });
+
+  // Reload favorites if the storage key changes (userId arrives after first render)
+  useEffect(() => {
+    try { setFavorites(new Set(JSON.parse(localStorage.getItem(favKey) || '[]'))); }
+    catch { /* ignore */ }
+  }, [favKey]);
+
+  const toggleFavorite = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFavorites(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      localStorage.setItem(favKey, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
   const filtered = useMemo(() => {
     const lq = q.toLowerCase();
-    return lq ? rows.filter(r =>
-      r.object_name.toLowerCase().includes(lq) ||
-      r.omsu.toLowerCase().includes(lq) ||
-      (r.contractor ?? '').toLowerCase().includes(lq)
-    ) : rows;
-  }, [rows, q]);
+    return rows.filter(r =>
+      (!lq || r.object_name.toLowerCase().includes(lq) || r.omsu.toLowerCase().includes(lq) || (r.contractor ?? '').toLowerCase().includes(lq)) &&
+      (!omsuFilter || r.omsu === omsuFilter)
+    );
+  }, [rows, q, omsuFilter]);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const colSpan = canEdit ? 16 : 15;
+  const colSpan = canEdit ? 18 : 17;
+
+  const fmtUpdated = (ts: string | null | undefined) => {
+    if (!ts) return null;
+    return new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={q} onChange={e => setQ(e.target.value)}
             placeholder="Поиск по объекту, ОМСУ, подрядчику…"
             className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400" />
         </div>
+        <select value={omsuFilter} onChange={e => setOmsuFilter(e.target.value)}
+          className="py-2 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white">
+          <option value="">Все ОМСУ</option>
+          {omsuOptions.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+        {(q || omsuFilter) && (
+          <button onClick={() => { setQ(''); setOmsuFilter(''); }}
+            className="text-xs text-teal-600 hover:underline">× Сбросить</button>
+        )}
         <span className="text-xs text-slate-400">{filtered.length} из {rows.length}</span>
       </div>
       <div className="overflow-x-auto rounded-xl border border-slate-200">
-        <table className="w-full text-xs min-w-[1380px]">
+        <table className="w-full text-xs min-w-[1520px]">
           <thead className="bg-slate-50 text-slate-600 uppercase">
             <tr>
+              <th className="px-2 py-2 w-7 text-center" title="Избранное">⭐</th>
               <th className="px-2 py-2 text-left font-semibold w-6">#</th>
               <th className="px-2 py-2 text-left font-semibold">ОМСУ</th>
               <th className="px-2 py-2 text-left font-semibold">Мероприятие</th>
@@ -292,6 +337,7 @@ function ObjectsTable({
               <th className="px-2 py-2 text-left font-semibold">Дата оплаты</th>
               <th className="px-2 py-2 text-left font-semibold">Комментарий</th>
               <th className="px-2 py-2 text-left font-semibold">Действия</th>
+              <th className="px-2 py-2 text-left font-semibold text-slate-400 whitespace-nowrap">Изменён</th>
               {canEdit && <th className="px-2 py-2 w-8" />}
             </tr>
           </thead>
@@ -306,14 +352,25 @@ function ObjectsTable({
                 && r.payment_status !== 'paid' && r.payment_status !== 'terminated';
               const daysDiff = pdDate ? Math.round((pdDate.getTime() - today.getTime()) / 86400000) : null;
               const isSoon = !isOverdue && daysDiff !== null && daysDiff >= 0 && daysDiff <= 30;
+              const isFav = favorites.has(r.id);
               return (
                 <tr key={r.id}
-                  className={`transition group ${isOverdue ? 'bg-[#FFF0F3]' : ''} ${canEdit ? 'hover:bg-teal-50 cursor-pointer' : 'hover:bg-slate-50'}`}
+                  className={`transition group ${isOverdue ? 'bg-[#FFF0F3]' : isFav ? 'bg-amber-50/50' : ''} ${canEdit ? 'hover:bg-teal-50 cursor-pointer' : 'hover:bg-slate-50'}`}
                   onClick={() => canEdit && onEdit?.(r)}
                 >
+                  <td className="px-2 py-2 text-center">
+                    <button
+                      onClick={e => toggleFavorite(r.id, e)}
+                      className={`text-sm leading-none transition hover:scale-125 ${isFav ? 'opacity-100' : 'opacity-15 hover:opacity-50'}`}
+                      title={isFav ? 'Убрать из избранного' : 'Добавить в избранное'}
+                    >⭐</button>
+                  </td>
                   <td className="px-2 py-2 text-slate-400">{i + 1}</td>
                   <td className="px-2 py-2 font-semibold text-[#8A4C08] whitespace-nowrap">{r.omsu}</td>
-                  <td className="px-2 py-2 text-slate-700 max-w-[200px] leading-snug">{r.object_name}</td>
+                  <td className="px-2 py-2 text-slate-700 max-w-[200px] leading-snug">
+                    {r.object_name}
+                    {r.uin && <div className="text-[10px] font-mono text-teal-600 mt-0.5">УИН: {r.uin}</div>}
+                  </td>
                   <td className="px-2 py-2 text-slate-500 max-w-[140px] truncate">{r.contractor || '—'}</td>
                   <td className="px-2 py-2 text-center"><CheckBadge val={r.mogae_approved} /></td>
                   <td className="px-2 py-2 text-center"><CheckBadge val={r.smr_completed} /></td>
@@ -349,6 +406,9 @@ function ObjectsTable({
                   </td>
                   <td className="px-2 py-2 text-slate-500 max-w-[160px] truncate" title={r.comment ?? ''}>{r.comment || '—'}</td>
                   <td className="px-2 py-2 text-slate-500 max-w-[160px] truncate" title={r.actions ?? ''}>{r.actions || '—'}</td>
+                  <td className="px-2 py-2 text-slate-400 whitespace-nowrap text-[10px]">
+                    {fmtUpdated(r.updated_at) ?? '—'}
+                  </td>
                   {canEdit && (
                     <td className="px-2 py-2">
                       <button
@@ -1152,7 +1212,7 @@ const MOGAE_ITEMS = [
 
 export default function ClosureView() {
   const { profile } = useAuth();
-  const canEdit = ['admin', 'manager', 'analyst'].includes(profile?.role ?? '');
+  const { canEdit } = usePermissions('closure');
 
   const [data, setData]       = useState<ClosureObject[]>([]);
   const [changes, setChanges] = useState<ClosureChange[]>([]);
@@ -1394,7 +1454,7 @@ export default function ClosureView() {
                     </div>
                   )}
                 </div>
-                <ObjectsTable rows={tableRows} onEdit={setEditRecord} canEdit={canEdit} />
+                <ObjectsTable rows={tableRows} onEdit={setEditRecord} canEdit={canEdit} userId={profile?.id} />
               </div>
             </div>
           )}

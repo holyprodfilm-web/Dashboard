@@ -55,6 +55,7 @@ function AppContent() {
   const [roleChangeToast, setRoleChangeToast] = useState<string | null>(null);
   const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
   const hadErrorRef = useRef(false);
+  const disconnectedAtRef = useRef<number | null>(null);
   const currentRoleRef = useRef<string | null>(null);
   const currentDistrictsRef = useRef<string[] | null | undefined>(undefined);
 
@@ -90,6 +91,22 @@ function AppContent() {
       : window.location.pathname;
     window.history.replaceState(null, '', newUrl);
   }, [view, objectsStatusFilter]);
+
+  // Quick refresh: all mutable datasets except addresses (extremely rare to change)
+  // Used after brief disconnects (<90 s) to skip the heavier full loadAllData
+  const quickRefresh = useCallback(async () => {
+    if (!user) return;
+    const [meetRes, taskRes, profileRes, permRes] = await Promise.all([
+      supabase.from('meetings').select('*').order('meeting_date', { ascending: false }),
+      supabase.from('tasks').select('*'),
+      supabase.from('profiles').select('*'),
+      supabase.from('role_permissions').select('*'),
+    ]);
+    if (meetRes.data) setMeetings(meetRes.data);
+    if (taskRes.data) setTasks(taskRes.data);
+    if (profileRes.data) setProfiles(profileRes.data);
+    if (permRes.data) setRolePermissions(permRes.data);
+  }, [user]);
 
   const loadAllData = useCallback(async () => {
     if (!user) return;
@@ -261,13 +278,21 @@ function AppContent() {
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           if (hadErrorRef.current) {
+            const disconnectedMs = disconnectedAtRef.current
+              ? Date.now() - disconnectedAtRef.current
+              : Infinity;
             setShowReconnectToast(true);
             setReconnectRefreshing(true);
-            void loadAllData().finally(() => setReconnectRefreshing(false));
+            // Brief disconnect (switching apps, tab sleep <90s) → fast 2-table refresh
+            // Long disconnect → full reload to catch all missed changes
+            const refreshFn = disconnectedMs < 90_000 ? quickRefresh : loadAllData;
+            void refreshFn().finally(() => setReconnectRefreshing(false));
             hadErrorRef.current = false;
+            disconnectedAtRef.current = null;
           }
           setRealtimeStatus('live');
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          if (!hadErrorRef.current) disconnectedAtRef.current = Date.now();
           hadErrorRef.current = true;
           setRealtimeStatus('error');
         } else {
@@ -279,7 +304,7 @@ function AppContent() {
       void supabase.removeChannel(channel);
       setRealtimeStatus('connecting');
     };
-  }, [user, loadAllData]);
+  }, [user, loadAllData, quickRefresh]);
 
   if (loading || (user && dataLoading && !reconnectRefreshing)) {
     return (
@@ -379,6 +404,7 @@ function AppContent() {
                         ['dashboard', 'objects', 'closure', 'nts'].map(mod => [mod, hasModule(mod)])
                       )
                 }
+                onNavigate={(v) => setView(v as View)}
               />
 
               <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
@@ -517,6 +543,13 @@ function AppContent() {
             profiles={profiles}
             rolePermissions={rolePermissions}
             onReload={loadAllData}
+            onPermissionUpdated={(perm) =>
+              setRolePermissions(prev => {
+                const idx = prev.findIndex(p => p.role === perm.role && p.module === perm.module);
+                if (idx >= 0) { const next = [...prev]; next[idx] = perm; return next; }
+                return [...prev, perm];
+              })
+            }
           />
         )}
         {view === 'backups' && profile?.role === 'admin' && (

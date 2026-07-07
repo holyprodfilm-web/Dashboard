@@ -30,6 +30,11 @@ export interface ClosureObject {
   comment: string;
   snapshot_date: string;
   created_at?: string;
+  updated_at?: string | null;
+  contract_link?: string | null;
+  contract_number?: string | null;
+  pik_contract_link?: string | null;
+  federal_law?: string | null;
 }
 
 export type TaskStatus = 'new' | 'in_progress' | 'completed' | 'overdue';

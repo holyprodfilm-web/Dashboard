@@ -8,10 +8,12 @@ interface UsersViewProps {
   profiles: Profile[];
   rolePermissions: RolePermission[];
   onReload: () => void;
+  onPermissionUpdated?: (perm: RolePermission) => void;
 }
 
-const ROLES_LIST: Array<Profile['role']> = ['admin', 'manager', 'analyst', 'guest'];
 const EDITABLE_ROLES: Array<Profile['role']> = ['manager', 'analyst', 'guest'];
+// All roles (including admin) can be assigned by admins
+const ASSIGNABLE_ROLES: Array<Profile['role']> = ['admin', 'manager', 'analyst', 'guest'];
 
 const MODULES_CONFIG = [
   {
@@ -41,7 +43,7 @@ const MODULES_CONFIG = [
   },
 ];
 
-export default function UsersView({ profiles, rolePermissions, onReload }: UsersViewProps) {
+export default function UsersView({ profiles, rolePermissions, onReload: _onReload, onPermissionUpdated }: UsersViewProps) {
   const [tab, setTab] = useState<'users' | 'permissions'>('users');
   const [updating, setUpdating] = useState<string | null>(null);
   const [localPerms, setLocalPerms] = useState<RolePermission[]>(rolePermissions);
@@ -58,7 +60,7 @@ export default function UsersView({ profiles, rolePermissions, onReload }: Users
     const { error } = await supabase.from('profiles').update({ role }).eq('id', userId);
     setUpdating(null);
     if (error) alert('Ошибка обновления роли: ' + error.message);
-    else onReload();
+    // realtime subscription in App.tsx propagates the UPDATE automatically — no full reload needed
   };
 
   const updateResponsibleModules = async (userId: string, modules: string[]) => {
@@ -66,7 +68,7 @@ export default function UsersView({ profiles, rolePermissions, onReload }: Users
     const { error } = await supabase.from('profiles').update({ responsible_modules: modules }).eq('id', userId);
     setUpdatingModules(null);
     if (error) alert('Ошибка обновления назначений: ' + error.message);
-    else onReload();
+    // realtime subscription propagates the UPDATE automatically
   };
 
   const toggleModuleAssignment = (profile: Profile, moduleId: string) => {
@@ -107,7 +109,8 @@ export default function UsersView({ profiles, rolePermissions, onReload }: Users
       alert('Ошибка сохранения прав: ' + error.message);
       setLocalPerms(rolePermissions);
     } else {
-      onReload();
+      // Update parent state directly — no full reload needed
+      onPermissionUpdated?.(newPerm);
     }
   };
 
@@ -202,7 +205,7 @@ export default function UsersView({ profiles, rolePermissions, onReload }: Users
                               onChange={e => updateRole(p.id, e.target.value as Profile['role'])}
                               className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none disabled:opacity-50"
                             >
-                              {ROLES_LIST.filter(r => r !== 'admin').map(role => (
+                              {ASSIGNABLE_ROLES.map(role => (
                                 <option key={role} value={role}>{ROLE_LABELS[role]}</option>
                               ))}
                             </select>
