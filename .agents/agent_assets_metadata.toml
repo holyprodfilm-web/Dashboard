@@ -6,3 +6,15 @@ id = "86WpVobTksSM0RsUyogPZ"
 uri = "file://attached_assets/closure_objects.csv"
 type = "table"
 title = "closure_objects.csv — 500 объектов"
+
+[[outputs]]
+id = "rvT_0gQMpOFdNCN8xgnFv"
+uri = "file://arm-app.tar.gz"
+type = "unspecified"
+title = "arm-app.tar.gz — архив приложения"
+
+[[outputs]]
+id = "wpwtX-5mDQtqFDetAwypL"
+uri = "file://vps-setup.sh"
+type = "unspecified"
+title = "vps-setup.sh — скрипт установки"
