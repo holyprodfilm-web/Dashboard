@@ -537,6 +537,11 @@ function AppContent() {
             meetings={visibleMeetings}
             onBack={() => setView('dashboard')}
             onReload={loadAllData}
+            onTaskCreated={(task) =>
+              setTasks((prev) =>
+                prev.some((t) => t.id === task.id) ? prev : [...prev, task]
+              )
+            }
           />
         )}
       </main>

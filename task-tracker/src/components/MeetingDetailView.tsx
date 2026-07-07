@@ -21,10 +21,11 @@ interface MeetingDetailViewProps {
   meetings: Meeting[];   // все совещания (для поиска по объекту)
   onBack: () => void;
   onReload: () => void;
+  onTaskCreated: (task: Task) => void;
 }
 
 export default function MeetingDetailView({
-  meetingId, addresses, tasks, profiles, meetings, onBack, onReload,
+  meetingId, addresses, tasks, profiles, meetings, onBack, onReload, onTaskCreated,
 }: MeetingDetailViewProps) {
   const { profile } = useAuth();
   const { canCreate, canEdit, canDelete } = usePermissions();
@@ -251,9 +252,9 @@ export default function MeetingDetailView({
           meetingId={meetingId}
           availableObjects={availableObjects}
           onClose={() => setShowTaskModal(false)}
-          onCreated={() => {
+          onCreated={(task) => {
+            onTaskCreated(task); // мгновенно добавляем в глобальный state — без полной перезагрузки
             setToast('Поручение создано');
-            onReload(); // принудительно синхронизируем список (fallback если real-time не работает)
           }}
         />
       )}

@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Plus, X, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { type Address, ORGANIZATIONS } from '../types';
+import { type Address, type Task, ORGANIZATIONS } from '../types';
 
 interface CreateTaskModalProps {
   meetingId: number;
   availableObjects: Address[];
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (task: Task) => void;
 }
 
 export default function CreateTaskModal({ meetingId, availableObjects, onClose, onCreated }: CreateTaskModalProps) {
@@ -29,7 +29,8 @@ export default function CreateTaskModal({ meetingId, availableObjects, onClose, 
     }
 
     setSaving(true);
-    const { error } = await supabase.from('tasks').insert([{
+
+    const { data, error } = await supabase.from('tasks').insert([{
       meeting_id: meetingId,
       object_uin: objectUin,
       responsible,
@@ -37,15 +38,34 @@ export default function CreateTaskModal({ meetingId, availableObjects, onClose, 
       description,
       deadline,
       status: 'new'
-    }]);
-    setSaving(false);
+    }]).select().single<Task>();
 
-    if (!error) {
-      onCreated();
-      onClose();
-    } else {
+    if (error) {
+      setSaving(false);
       alert('Ошибка создания поручения: ' + error.message);
+      return;
     }
+
+    // Insert succeeded. If RETURNING was blocked by RLS, data will be null —
+    // in that case, fetch the newly created row directly (cheap single-row query).
+    let task: Task | null = data;
+    if (!task) {
+      const { data: fetched } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('meeting_id', meetingId)
+        .order('id', { ascending: false })
+        .limit(1)
+        .single<Task>();
+      task = fetched ?? null;
+    }
+
+    setSaving(false);
+    onClose();
+    if (task) {
+      onCreated(task);
+    }
+    // If task is still null, realtime subscription will deliver the INSERT event
   };
 
   return (
