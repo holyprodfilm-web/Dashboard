@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
 import {
   Loader2, AlertCircle, CheckCircle2, Clock3, XCircle, MinusCircle,
   Building2, ChevronDown, ChevronUp, Search, RefreshCw, TrendingUp,
@@ -245,12 +245,14 @@ function ObjectsTable({
   rows,
   onEdit,
   canEdit = false,
-  userId,
+  favorites = new Set<number>(),
+  onToggleFavorite,
 }: {
   rows: ClosureObject[];
   onEdit?: (r: ClosureObject) => void;
   canEdit?: boolean;
-  userId?: string;
+  favorites?: Set<number>;
+  onToggleFavorite?: (id: number) => void;
 }) {
   const [q, setQ] = useState('');
   const [omsuFilter, setOmsuFilter] = useState('');
@@ -259,26 +261,9 @@ function ObjectsTable({
     [...new Set(rows.map(r => r.omsu).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
   [rows]);
 
-  const favKey = `closure_fav_${userId ?? 'anon'}`;
-  const [favorites, setFavorites] = useState<Set<number>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem(favKey) || '[]')); }
-    catch { return new Set(); }
-  });
-
-  // Reload favorites if the storage key changes (userId arrives after first render)
-  useEffect(() => {
-    try { setFavorites(new Set(JSON.parse(localStorage.getItem(favKey) || '[]'))); }
-    catch { /* ignore */ }
-  }, [favKey]);
-
-  const toggleFavorite = (id: number, e: React.MouseEvent) => {
+  const handleToggleFav = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    setFavorites(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      localStorage.setItem(favKey, JSON.stringify([...next]));
-      return next;
-    });
+    onToggleFavorite?.(id);
   };
 
   const filtered = useMemo(() => {
@@ -360,7 +345,7 @@ function ObjectsTable({
                 >
                   <td className="px-2 py-2 text-center">
                     <button
-                      onClick={e => toggleFavorite(r.id, e)}
+                      onClick={e => handleToggleFav(r.id, e)}
                       className={`text-sm leading-none transition hover:scale-125 ${isFav ? 'opacity-100' : 'opacity-15 hover:opacity-50'}`}
                       title={isFav ? 'Убрать из избранного' : 'Добавить в избранное'}
                     >⭐</button>
@@ -1192,7 +1177,7 @@ function PaidTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEdit: (r:
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-type TabId = 'payments' | 'contractors' | 'causes' | 'top5' | 'paid' | 'schedule' | 'dynamics';
+type TabId = 'payments' | 'contractors' | 'causes' | 'top5' | 'paid' | 'schedule' | 'dynamics' | 'favorites';
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'payments',    label: 'Оплаты',         icon: <CheckCircle2 size={16} /> },
@@ -1202,6 +1187,7 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'paid',        label: 'Оплачены',        icon: <Star size={16} /> },
   { id: 'schedule',    label: 'График оплаты',   icon: <Calendar size={16} /> },
   { id: 'dynamics',    label: 'Динамика',        icon: <BarChart2 size={16} /> },
+  { id: 'favorites',   label: 'Избранное',       icon: <span className="text-base leading-none">⭐</span> },
 ];
 
 const MOGAE_ITEMS = [
@@ -1222,6 +1208,25 @@ export default function ClosureView() {
   const [tab, setTab]         = useState<TabId>('payments');
   const [mogaeFilter, setMogaeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<PaymentStatus | null>(null);
+  // Favorites — single source of truth, lifted here so favorites tab stays in sync
+  const favKey = `closure_fav_${profile?.id ?? 'anon'}`;
+  const [favorites, setFavoritesState] = useState<Set<number>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(`closure_fav_${profile?.id ?? 'anon'}`) || '[]')); }
+    catch { return new Set(); }
+  });
+  // Re-sync when userId becomes available (profile loads after first render)
+  useEffect(() => {
+    try { setFavoritesState(new Set(JSON.parse(localStorage.getItem(favKey) || '[]'))); }
+    catch { /* ignore */ }
+  }, [favKey]);
+  const toggleFavorite = useCallback((id: number) => {
+    setFavoritesState(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      localStorage.setItem(favKey, JSON.stringify([...next]));
+      return next;
+    });
+  }, [favKey]);
   const [editRecord, setEditRecord]   = useState<ClosureObject | null>(null);
   const [showImport, setShowImport]   = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -1454,7 +1459,7 @@ export default function ClosureView() {
                     </div>
                   )}
                 </div>
-                <ObjectsTable rows={tableRows} onEdit={setEditRecord} canEdit={canEdit} userId={profile?.id} />
+                <ObjectsTable rows={tableRows} onEdit={setEditRecord} canEdit={canEdit} favorites={favorites} onToggleFavorite={toggleFavorite} />
               </div>
             </div>
           )}
@@ -1486,6 +1491,51 @@ export default function ClosureView() {
 
           {/* ── TAB: Dynamics ── */}
           {tab === 'dynamics' && <DynamicsTab data={data} />}
+
+          {/* ── TAB: Favorites ── */}
+          {tab === 'favorites' && (() => {
+            const favRows = latest.filter(r => favorites.has(r.id));
+            return (
+              <div className="space-y-4">
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <h3 className="text-sm font-bold text-amber-700 uppercase tracking-wide flex items-center gap-2">
+                      ⭐ Избранные объекты
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">
+                        {favorites.size}
+                      </span>
+                    </h3>
+                    <button
+                      onClick={() => {
+                        try { setFavoritesState(new Set(JSON.parse(localStorage.getItem(favKey) || '[]'))); }
+                        catch { /* ignore */ }
+                      }}
+                      className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-teal-600 transition"
+                    >
+                      <RefreshCw size={12} /> Обновить
+                    </button>
+                  </div>
+                  {favRows.length === 0 ? (
+                    <div className="py-16 text-center">
+                      <p className="text-4xl mb-3">⭐</p>
+                      <p className="text-slate-600 font-medium">Нет избранных объектов</p>
+                      <p className="text-slate-400 text-sm mt-1">
+                        Перейдите на вкладку «Оплаты» и нажмите ⭐ напротив нужного объекта
+                      </p>
+                    </div>
+                  ) : (
+                    <ObjectsTable
+                      rows={favRows}
+                      onEdit={setEditRecord}
+                      canEdit={canEdit}
+                      favorites={favorites}
+                      onToggleFavorite={toggleFavorite}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
 

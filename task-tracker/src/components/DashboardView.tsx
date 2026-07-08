@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   FileText, Clock, CheckCircle, AlertTriangle,
-  CalendarClock, Sunrise, User, Building2,
+  CalendarClock, Sunrise, User, Building2, Filter, X,
 } from 'lucide-react';
 import type { Task, Meeting, Address } from '../types';
 import { getAutoStatus } from '../utils';
@@ -27,8 +27,8 @@ function TaskRow({ t, meetingManagerMap, addressNameMap }: TaskRowProps) {
   const objName = addressNameMap.get(t.object_uin) ?? t.object_uin;
   return (
     <div className="px-4 py-3 border-b last:border-0 border-slate-100 hover:bg-slate-50 transition">
-      <p className="text-xs font-medium text-slate-500 truncate mb-0.5">{objName}</p>
-      <p className="text-sm text-slate-800 leading-snug line-clamp-2">{t.description}</p>
+      <p className="text-xs font-medium text-slate-500 mb-0.5 leading-snug">{objName}</p>
+      <p className="text-sm text-slate-800 leading-snug">{t.description}</p>
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
         {t.responsible && (
           <span className="flex items-center gap-1 text-xs text-slate-500">
@@ -75,7 +75,7 @@ function DeadlineGroup({
           {tasks.length}
         </span>
       </div>
-      <div className="flex-1 overflow-y-auto max-h-72">
+      <div className="flex-1 overflow-y-auto max-h-[480px]">
         {tasks.length === 0 ? (
           <p className="text-center text-slate-400 text-sm py-8">{emptyText}</p>
         ) : (
@@ -107,6 +107,9 @@ export default function DashboardView({
   tasks, meetings, addresses, onManagerClick, onStatusFilter,
 }: DashboardViewProps) {
 
+  const [districtFilter, setDistrictFilter]     = useState('');
+  const [responsibleFilter, setResponsibleFilter] = useState('');
+
   const meetingManagerMap = useMemo(
     () => new Map(meetings.map(m => [m.id, m.manager])),
     [meetings],
@@ -117,6 +120,36 @@ export default function DashboardView({
     [addresses],
   );
 
+  const addressDistrictMap = useMemo(
+    () => new Map(addresses.map(a => [a['Код УИН'], (a as Record<string, string>)['Городской округ'] ?? ''])),
+    [addresses],
+  );
+
+  // Options for dropdowns (derived from unfiltered tasks)
+  const districtOptions = useMemo(() => {
+    const set = new Set<string>();
+    tasks.forEach(t => { const d = addressDistrictMap.get(t.object_uin ?? ''); if (d) set.add(d); });
+    return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [tasks, addressDistrictMap]);
+
+  const responsibleOptions = useMemo(() => {
+    const set = new Set<string>();
+    tasks.forEach(t => { if (t.responsible) set.add(t.responsible); });
+    return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [tasks]);
+
+  // Apply local filters
+  const filteredTasks = useMemo(() => tasks.filter(t => {
+    if (districtFilter) {
+      const d = addressDistrictMap.get(t.object_uin ?? '') ?? '';
+      if (d !== districtFilter) return false;
+    }
+    if (responsibleFilter && t.responsible !== responsibleFilter) return false;
+    return true;
+  }), [tasks, districtFilter, responsibleFilter, addressDistrictMap]);
+
+  const hasFilters = !!(districtFilter || responsibleFilter);
+
   // ── aggregate KPI + per-manager stats ──────────────────────────────────────
   const analytics = useMemo(() => {
     let total = 0, completed = 0, inProgress = 0, overdue = 0, newTasks = 0;
@@ -124,7 +157,7 @@ export default function DashboardView({
       total: number; completed: number; overdue: number; inProgress: number; newTasks: number;
     }> = {};
 
-    tasks.forEach(t => {
+    filteredTasks.forEach(t => {
       if (!t.object_uin) return;
       total++;
       const manager = meetingManagerMap.get(t.meeting_id) ?? 'Не указан';
@@ -142,7 +175,7 @@ export default function DashboardView({
     });
 
     return { total, completed, inProgress, overdue, newTasks, byManager };
-  }, [tasks, meetings, meetingManagerMap]);
+  }, [filteredTasks, meetingManagerMap]);
 
   // ── today / tomorrow buckets (timezone-safe string comparison) ─────────────
   const { dueToday, dueTomorrow, todayLabel, tomorrowLabel } = useMemo(() => {
@@ -156,7 +189,7 @@ export default function DashboardView({
     const dueToday: Task[]    = [];
     const dueTomorrow: Task[] = [];
 
-    tasks.forEach(t => {
+    filteredTasks.forEach(t => {
       if (!t.deadline || !t.object_uin) return;
       if (getAutoStatus(t.status, t.deadline) === 'completed') return;
 
@@ -174,7 +207,7 @@ export default function DashboardView({
       todayLabel:    fmt(now),
       tomorrowLabel: fmt(tomorrow),
     };
-  }, [tasks]);
+  }, [filteredTasks]);
 
   const progressPercent = analytics.total > 0
     ? Math.round((analytics.completed / analytics.total) * 100)
@@ -182,9 +215,44 @@ export default function DashboardView({
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-[#8A4C08]">Дашборд</h2>
-        <p className="text-slate-500">Аналитика и статистика исполнения поручений</p>
+      <div className="mb-5 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-[#8A4C08]">Дашборд</h2>
+          <p className="text-slate-500">Аналитика и статистика исполнения поручений</p>
+        </div>
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Filter size={14} className="text-slate-400 shrink-0" />
+          <select
+            value={districtFilter}
+            onChange={e => setDistrictFilter(e.target.value)}
+            className="py-1.5 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
+          >
+            <option value="">Все округа</option>
+            {districtOptions.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <select
+            value={responsibleFilter}
+            onChange={e => setResponsibleFilter(e.target.value)}
+            className="py-1.5 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
+          >
+            <option value="">Все ответственные</option>
+            {responsibleOptions.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          {hasFilters && (
+            <button
+              onClick={() => { setDistrictFilter(''); setResponsibleFilter(''); }}
+              className="flex items-center gap-1 text-xs text-teal-600 hover:underline"
+            >
+              <X size={12} /> Сбросить
+            </button>
+          )}
+          {hasFilters && (
+            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">
+              {filteredTasks.length} из {tasks.length} поручений
+            </span>
+          )}
+        </div>
       </div>
 
       {/* KPI Cards */}
