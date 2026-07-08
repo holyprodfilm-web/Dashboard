@@ -300,7 +300,18 @@ function AppContent() {
         }
       });
 
+    // Page Visibility API — when the user returns to the tab, reconnect if the channel dropped
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      const state = channel.state;
+      if (state !== 'joined' && state !== 'joining') {
+        void channel.subscribe();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       void supabase.removeChannel(channel);
       setRealtimeStatus('connecting');
     };

@@ -13,4 +13,11 @@ if (!supabaseUrl || !supabaseKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  realtime: {
+    // Heartbeat every 15 s — prevents proxies/firewalls from dropping idle WebSocket connections
+    heartbeatIntervalMs: 15_000,
+    // Reconnect up to 10 times with exponential back-off before giving up
+    reconnectAfterMs: (tries: number) => Math.min(500 * 2 ** tries, 30_000),
+  },
+});
