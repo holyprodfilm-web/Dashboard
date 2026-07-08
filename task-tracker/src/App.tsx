@@ -581,8 +581,8 @@ function AppContent() {
       {showReconnectToast && (
         <Toast
           message="Данные обновлены"
+          duration={3000}
           onClose={() => setShowReconnectToast(false)}
-          persistent
         />
       )}
       {roleChangeToast && (
