@@ -28,5 +28,11 @@ export function filterTasksForRole(
 
 export function canEditTask(_task: Task, profile: Profile | null): boolean {
   if (!profile) return false;
-  return profile.role === 'admin' || profile.role === 'manager';
+  // Admin and РП (manager) have full task edit access
+  if (profile.role === 'admin' || profile.role === 'manager') return true;
+  // Analysts can also change task status (they see all tasks)
+  if (profile.role === 'analyst') return true;
+  // Module responsibles for tasks/meetings module get edit rights
+  if (profile.responsible_modules?.some(m => m === 'tasks' || m === 'meetings')) return true;
+  return false;
 }

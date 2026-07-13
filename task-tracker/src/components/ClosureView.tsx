@@ -1,14 +1,16 @@
-import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from 'react';
 import {
   Loader2, AlertCircle, CheckCircle2, Clock3, XCircle, MinusCircle,
   Building2, ChevronDown, ChevronUp, Search, RefreshCw, TrendingUp,
   BarChart2, AlertTriangle, Layers, Pencil, Upload, History, Calendar,
-  Trophy, Star,
+  Trophy, Star, Download,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { usePermissions } from '../lib/usePermissions';
-import type { ClosureObject, ClosureChange, PaymentStatus } from '../types';
+import type { ClosureObject, ClosureChange, PaymentStatus, Address } from '../types';
+import { exportClosureObjects, EXPORT_LABELS } from '../lib/closureExport';
+import type { ExportVariant } from '../lib/closureExport';
 import ClosureEditModal from './ClosureEditModal';
 import ClosureImportModal from './ClosureImportModal';
 
@@ -187,51 +189,77 @@ function MoneyCard({ label: lbl, value, sub, pct, accent }: {
 
 // ── Pipeline section ──────────────────────────────────────────────────────────
 
-function PipelineSection({ data }: { data: ClosureObject[] }) {
+function PipelineSection({
+  data,
+  activeStage,
+  onStageClick,
+}: {
+  data: ClosureObject[];
+  activeStage: string | null;
+  onStageClick: (stage: string | null) => void;
+}) {
   const active = data.filter(r => r.payment_status !== 'terminated');
-  const counts = {
-    b1: active.filter(r => getFunnelBlock(r) === 'b1').length,
-    b2: active.filter(r => getFunnelBlock(r) === 'b2').length,
-    b3: active.filter(r => getFunnelBlock(r) === 'b3').length,
-    b4: active.filter(r => getFunnelBlock(r) === 'b4').length,
-    paid: active.filter(r => getFunnelBlock(r) === 'paid').length,
+  const byBlock = {
+    b1: active.filter(r => getFunnelBlock(r) === 'b1'),
+    b2: active.filter(r => getFunnelBlock(r) === 'b2'),
+    b3: active.filter(r => getFunnelBlock(r) === 'b3'),
+    b4: active.filter(r => getFunnelBlock(r) === 'b4'),
+    paid: active.filter(r => getFunnelBlock(r) === 'paid'),
   };
 
   const steps = [
-    { num: 1, icon: '📋', label: 'Получение\nМОГЭ', count: counts.b1, color: '#d63030', bg: '#fff0f0' },
-    { num: 2, icon: '🏗️', label: 'Завершение\nСМР',  count: counts.b2, color: '#e07030', bg: '#fff6f0' },
-    { num: 3, icon: '📁', label: 'Сдача ИД\nи КС',   count: counts.b3, color: '#8b35d6', bg: '#f8f0ff' },
-    { num: 4, icon: '💰', label: 'Ожидание\nоплаты', count: counts.b4, color: '#1b5e8a', bg: '#f0f4ff' },
+    { key: 'b1', num: 1, icon: '📋', label: 'Получение\nМОГЭ', count: byBlock.b1.length, color: '#d63030', bg: '#fff0f0' },
+    { key: 'b2', num: 2, icon: '🏗️', label: 'Завершение\nСМР',  count: byBlock.b2.length, color: '#e07030', bg: '#fff6f0' },
+    { key: 'b3', num: 3, icon: '📁', label: 'Сдача ИД\nи КС',   count: byBlock.b3.length, color: '#8b35d6', bg: '#f8f0ff' },
+    { key: 'b4', num: 4, icon: '💰', label: 'Ожидание\nоплаты', count: byBlock.b4.length, color: '#1b5e8a', bg: '#f0f4ff' },
   ];
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-6">
-      <h3 className="text-xs font-bold text-[#8A4C08] uppercase tracking-wide mb-4">
-        🔄 Путь подрядчика к оплате
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-xs font-bold text-[#8A4C08] uppercase tracking-wide">
+          🔄 Путь подрядчика к оплате
+        </h3>
+        {activeStage && (
+          <button onClick={() => onStageClick(null)}
+            className="text-xs text-teal-600 hover:underline">× Сбросить фильтр</button>
+        )}
+      </div>
       <div className="flex items-stretch gap-2">
-        {steps.map((s, i) => (
-          <Fragment key={s.num}>
-            <div className="flex-1 rounded-xl p-3 text-center border-2 flex flex-col items-center justify-center gap-1.5 min-h-[110px]"
-              style={{ background: s.bg, borderColor: s.color + '30' }}>
-              <div className="w-5 h-5 rounded-full text-white text-[10px] font-black flex items-center justify-center flex-shrink-0"
-                style={{ background: s.color }}>{s.num}</div>
-              <div className="text-xl leading-none">{s.icon}</div>
-              <div className="text-[11px] font-semibold text-slate-700 leading-tight whitespace-pre-line">{s.label}</div>
-              <div className="text-2xl font-black leading-none" style={{ color: s.color }}>{s.count}</div>
-              <div className="text-[10px] text-slate-400">объектов</div>
-            </div>
-            {i < steps.length - 1 && (
-              <div className="flex items-center text-slate-300 text-lg flex-shrink-0">→</div>
-            )}
-          </Fragment>
-        ))}
+        {steps.map((s, i) => {
+          const isActive = activeStage === s.key;
+          return (
+            <Fragment key={s.num}>
+              <button
+                onClick={() => onStageClick(isActive ? null : s.key)}
+                className={`flex-1 rounded-xl p-3 text-center border-2 flex flex-col items-center justify-center gap-1.5 min-h-[110px] transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer
+                  ${isActive ? 'ring-2 ring-offset-1 shadow-md' : ''}`}
+                style={{
+                  background: s.bg,
+                  borderColor: isActive ? s.color : s.color + '30',
+                  ['--tw-ring-color' as string]: s.color,
+                }}
+                title={`Показать ${s.count} объектов в этапе «${s.label.replace('\n', ' ')}»`}
+              >
+                <div className="w-5 h-5 rounded-full text-white text-[10px] font-black flex items-center justify-center flex-shrink-0"
+                  style={{ background: s.color }}>{s.num}</div>
+                <div className="text-xl leading-none">{s.icon}</div>
+                <div className="text-[11px] font-semibold text-slate-700 leading-tight whitespace-pre-line">{s.label}</div>
+                <div className="text-2xl font-black leading-none" style={{ color: s.color }}>{s.count}</div>
+                <div className="text-[10px] text-slate-400">объектов</div>
+              </button>
+              {i < steps.length - 1 && (
+                <div className="flex items-center text-slate-300 text-lg flex-shrink-0">→</div>
+              )}
+            </Fragment>
+          );
+        })}
         <div className="flex items-center text-slate-300 text-lg flex-shrink-0">→</div>
         <div className="flex-1 rounded-xl p-3 text-center flex flex-col items-center justify-center gap-1.5 min-h-[110px] text-white"
           style={{ background: 'linear-gradient(135deg,#059669,#0d9488)' }}>
           <div className="text-xl leading-none">✅</div>
           <div className="text-[11px] font-semibold whitespace-pre-line opacity-90">Оплачено</div>
-          <div className="text-2xl font-black leading-none">{counts.paid}</div>
+          <div className="text-2xl font-black leading-none">{byBlock.paid.length}</div>
           <div className="text-[10px] opacity-75">объектов</div>
         </div>
       </div>
@@ -247,19 +275,29 @@ function ObjectsTable({
   canEdit = false,
   favorites = new Set<number>(),
   onToggleFavorite,
+  addressRpMap,
 }: {
   rows: ClosureObject[];
   onEdit?: (r: ClosureObject) => void;
   canEdit?: boolean;
   favorites?: Set<number>;
   onToggleFavorite?: (id: number) => void;
+  addressRpMap?: Map<string, string>;
 }) {
   const [q, setQ] = useState('');
   const [omsuFilter, setOmsuFilter] = useState('');
+  const [rpFilter, setRpFilter] = useState('');
 
   const omsuOptions = useMemo(() =>
     [...new Set(rows.map(r => r.omsu).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
   [rows]);
+
+  const rpOptions = useMemo(() => {
+    if (!addressRpMap) return [];
+    const set = new Set<string>();
+    rows.forEach(r => { if (r.uin) { const rp = addressRpMap.get(r.uin); if (rp) set.add(rp); } });
+    return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [rows, addressRpMap]);
 
   const handleToggleFav = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -268,11 +306,16 @@ function ObjectsTable({
 
   const filtered = useMemo(() => {
     const lq = q.toLowerCase();
-    return rows.filter(r =>
-      (!lq || r.object_name.toLowerCase().includes(lq) || r.omsu.toLowerCase().includes(lq) || (r.contractor ?? '').toLowerCase().includes(lq)) &&
-      (!omsuFilter || r.omsu === omsuFilter)
-    );
-  }, [rows, q, omsuFilter]);
+    return rows.filter(r => {
+      if (lq && !r.object_name.toLowerCase().includes(lq) && !r.omsu.toLowerCase().includes(lq) && !(r.contractor ?? '').toLowerCase().includes(lq)) return false;
+      if (omsuFilter && r.omsu !== omsuFilter) return false;
+      if (rpFilter && addressRpMap) {
+        const rp = r.uin ? (addressRpMap.get(r.uin) ?? '') : '';
+        if (rp !== rpFilter) return false;
+      }
+      return true;
+    });
+  }, [rows, q, omsuFilter, rpFilter, addressRpMap]);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const colSpan = canEdit ? 18 : 17;
@@ -296,8 +339,15 @@ function ObjectsTable({
           <option value="">Все ОМСУ</option>
           {omsuOptions.map(v => <option key={v} value={v}>{v}</option>)}
         </select>
-        {(q || omsuFilter) && (
-          <button onClick={() => { setQ(''); setOmsuFilter(''); }}
+        {rpOptions.length > 0 && (
+          <select value={rpFilter} onChange={e => setRpFilter(e.target.value)}
+            className="py-2 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white">
+            <option value="">Все РП</option>
+            {rpOptions.map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+        )}
+        {(q || omsuFilter || rpFilter) && (
+          <button onClick={() => { setQ(''); setOmsuFilter(''); setRpFilter(''); }}
             className="text-xs text-teal-600 hover:underline">× Сбросить</button>
         )}
         <span className="text-xs text-slate-400">{filtered.length} из {rows.length}</span>
@@ -676,96 +726,121 @@ function CausesTab({ data, onEdit, canEdit }: { data: ClosureObject[]; onEdit: (
 // ── Dynamics tab ──────────────────────────────────────────────────────────────
 
 function DynamicsTab({ data }: { data: ClosureObject[] }) {
-  // Показываем только объекты, оплаченные за последние 30 дней (с ~7 июня)
-  // Используем локальную дату (не UTC) чтобы избежать сдвига часового пояса
-  const cutoff = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  })();
+  const [period, setPeriod] = useState<'day' | 'week' | 'month'>('month');
 
-  const { timeline, recentPaid } = useMemo(() => {
-    const recent = data.filter(r =>
-      r.payment_status === 'paid' &&
-      r.payment_date &&
-      r.payment_date >= cutoff
-    );
-    const byDate: Record<string, ClosureObject[]> = {};
-    for (const r of recent) {
-      const d = r.payment_date!;
-      if (!byDate[d]) byDate[d] = [];
-      byDate[d].push(r);
+  const fmtMoney = (v: number) => {
+    if (v >= 1e9) return `${(v / 1e9).toFixed(1)} млрд ₽`;
+    return `${(v / 1e6).toFixed(1)} млн ₽`;
+  };
+
+  const allPaid = useMemo(() =>
+    data.filter(r => r.payment_status === 'paid' && r.payment_date),
+  [data]);
+
+  const getPeriodKey = (dateStr: string, p: 'day' | 'week' | 'month') => {
+    const d = new Date(dateStr + 'T00:00:00');
+    if (p === 'day') return dateStr;
+    if (p === 'month') return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    // ISO week
+    const day = d.getDay() || 7;
+    const thu = new Date(d); thu.setDate(d.getDate() + 4 - day);
+    const year = thu.getFullYear();
+    const startOfYear = new Date(year, 0, 1);
+    const week = Math.ceil(((thu.getTime() - startOfYear.getTime()) / 86400000 + 1) / 7);
+    return `${year}-W${String(week).padStart(2, '0')}`;
+  };
+
+  const getPeriodLabel = (key: string, p: 'day' | 'week' | 'month') => {
+    if (p === 'day') return new Date(key + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (p === 'month') {
+      const [yr, mo] = key.split('-');
+      return new Date(parseInt(yr), parseInt(mo) - 1, 1).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
     }
-    const tl = Object.entries(byDate)
+    return key; // week: "2025-W23"
+  };
+
+  const timeline = useMemo(() => {
+    const byPeriod: Record<string, { sum: number; count: number; objects: ClosureObject[] }> = {};
+    for (const r of allPaid) {
+      const key = getPeriodKey(r.payment_date!, period);
+      if (!byPeriod[key]) byPeriod[key] = { sum: 0, count: 0, objects: [] };
+      byPeriod[key].sum += r.paid_sum ?? 0;
+      byPeriod[key].count++;
+      byPeriod[key].objects.push(r);
+    }
+    return Object.entries(byPeriod)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, objects]) => ({
-        date,
-        label: new Date(date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }),
-        count: objects.length,
-        objects,
-      }));
-    return { timeline: tl, recentPaid: recent };
-  }, [data, cutoff]);
+      .map(([key, v]) => ({ key, label: getPeriodLabel(key, period), ...v }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allPaid, period]);
 
-  const cutoffLabel = new Date(`${cutoff}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-  const todayLabel  = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  const totalPaid = allPaid.reduce((s, r) => s + (r.paid_sum ?? 0), 0);
+  const maxSum = Math.max(1, ...timeline.map(s => s.sum));
+  const peakPeriod = timeline.length ? timeline.reduce((best, t) => t.sum > best.sum ? t : best) : null;
+  const periodLabel = period === 'day' ? 'дням' : period === 'week' ? 'неделям' : 'месяцам';
 
-  if (recentPaid.length === 0) {
+  if (allPaid.length === 0) {
     return (
       <div className="text-center text-slate-400 py-16">
         <div className="text-4xl mb-3">📊</div>
-        <p className="font-medium">Нет оплаченных объектов за последние 30 дней</p>
-        <p className="text-sm mt-1">Период: с {cutoffLabel} по {todayLabel}</p>
+        <p className="font-medium">Нет оплаченных объектов</p>
       </div>
     );
   }
 
-  const maxCount = Math.max(1, ...timeline.map(s => s.count));
-
   return (
     <div className="space-y-6">
+      {/* Period selector */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Группировка:</span>
+        {(['day', 'week', 'month'] as const).map(p => (
+          <button key={p} onClick={() => setPeriod(p)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition
+              ${period === p ? 'bg-teal-600 text-white shadow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            {p === 'day' ? 'День' : p === 'week' ? 'Неделя' : 'Месяц'}
+          </button>
+        ))}
+      </div>
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-5 shadow-sm border-t-4 border-emerald-400">
-          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Оплачено за 30 дней</div>
-          <div className="text-4xl font-black text-emerald-600">{recentPaid.length}</div>
-          <div className="text-xs text-slate-400 mt-1">с {cutoffLabel}</div>
+          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Всего оплачено</div>
+          <div className="text-2xl font-black text-emerald-600">{fmtMoney(totalPaid)}</div>
+          <div className="text-xs text-slate-400 mt-1">{allPaid.length} объектов</div>
         </div>
         <div className="bg-white rounded-2xl p-5 shadow-sm border-t-4 border-teal-400">
-          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Дней с оплатами</div>
-          <div className="text-4xl font-black text-teal-600">{timeline.length}</div>
-          <div className="text-xs text-slate-400 mt-1">уникальных дат</div>
+          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Периодов с оплатами</div>
+          <div className="text-2xl font-black text-teal-600">{timeline.length}</div>
+          <div className="text-xs text-slate-400 mt-1">{period === 'day' ? 'уникальных дней' : period === 'week' ? 'недель' : 'месяцев'}</div>
         </div>
         <div className="bg-white rounded-2xl p-5 shadow-sm border-t-4 border-amber-400">
-          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Пик за день</div>
-          <div className="text-4xl font-black text-amber-600">{maxCount}</div>
-          <div className="text-xs text-slate-400 mt-1">
-            {timeline.find(s => s.count === maxCount)?.label ?? '—'}
-          </div>
+          <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Пик за период</div>
+          <div className="text-2xl font-black text-amber-600">{peakPeriod ? fmtMoney(peakPeriod.sum) : '—'}</div>
+          <div className="text-xs text-slate-400 mt-1">{peakPeriod?.label ?? '—'}</div>
         </div>
       </div>
 
-      {/* Bar chart */}
+      {/* Bar chart — money sums */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
         <h3 className="text-sm font-bold text-[#8A4C08] uppercase tracking-wide mb-5">
-          Динамика оплат — с {cutoffLabel} по {todayLabel}
+          Сумма оплат по {periodLabel} (млн ₽)
         </h3>
         <div className="overflow-x-auto">
-          <div className="flex items-end gap-3 min-w-max pb-2" style={{ height: 200 }}>
+          <div className="flex items-end gap-2 min-w-max pb-2" style={{ height: 220 }}>
             {timeline.map(s => {
-              const barH = Math.max(12, Math.round((s.count / maxCount) * 160));
+              const barH = Math.max(12, Math.round((s.sum / maxSum) * 170));
               return (
-                <div key={s.date} className="flex flex-col items-center gap-1 group cursor-default">
-                  <div className="text-xs font-bold text-emerald-600 opacity-0 group-hover:opacity-100 transition">
-                    {s.count}
+                <div key={s.key} className="flex flex-col items-center gap-1 group cursor-default min-w-[56px]">
+                  <div className="text-[10px] font-bold text-emerald-600 opacity-0 group-hover:opacity-100 transition text-center">
+                    {fmtMoney(s.sum)}
                   </div>
-                  <div
-                    className="w-12 rounded-t-lg transition-all"
-                    style={{ height: barH, background: '#059669' }}
-                    title={`${s.label}: ${s.count} объектов`}
+                  <div className="w-12 rounded-t-lg bg-emerald-500 hover:bg-emerald-400 transition-all"
+                    style={{ height: barH }}
+                    title={`${s.label}: ${fmtMoney(s.sum)} (${s.count} объектов)`}
                   />
-                  <div className="text-xs text-slate-500 text-center whitespace-nowrap">{s.label}</div>
-                  <div className="text-xs font-semibold text-emerald-600">{s.count}</div>
+                  <div className="text-[10px] text-slate-500 text-center leading-tight whitespace-nowrap">{s.label}</div>
+                  <div className="text-[10px] font-semibold text-emerald-600 text-center">{s.count} об.</div>
                 </div>
               );
             })}
@@ -773,38 +848,34 @@ function DynamicsTab({ data }: { data: ClosureObject[] }) {
         </div>
       </div>
 
-      {/* Table of paid objects */}
+      {/* Table by period */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
           <h3 className="text-xs font-bold text-[#8A4C08] uppercase tracking-wide">
-            Объекты, оплаченные за 30 дней ({recentPaid.length})
+            Оплаты по {periodLabel}
           </h3>
         </div>
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-xs text-slate-600 uppercase border-b border-slate-100">
             <tr>
-              <th className="px-5 py-3 text-left font-semibold">Дата оплаты</th>
-              <th className="px-5 py-3 text-left font-semibold">Объектов</th>
+              <th className="px-5 py-3 text-left font-semibold">Период</th>
+              <th className="px-5 py-3 text-right font-semibold">Сумма оплат</th>
+              <th className="px-5 py-3 text-center font-semibold">Объектов</th>
               <th className="px-5 py-3 text-left font-semibold">ОМСУ</th>
-              <th className="px-5 py-3 text-left font-semibold">Мероприятия</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {timeline.map(s => (
-              <tr key={s.date} className="hover:bg-slate-50 transition align-top">
-                <td className="px-5 py-3 font-semibold text-emerald-700 whitespace-nowrap">
-                  {new Date(s.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </td>
-                <td className="px-5 py-3">
+            {[...timeline].reverse().map(s => (
+              <tr key={s.key} className="hover:bg-slate-50 transition">
+                <td className="px-5 py-3 font-semibold text-emerald-700">{s.label}</td>
+                <td className="px-5 py-3 text-right font-black text-slate-800">{fmtMoney(s.sum)}</td>
+                <td className="px-5 py-3 text-center">
                   <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 font-black text-sm">
                     {s.count}
                   </span>
                 </td>
-                <td className="px-5 py-3 text-xs text-slate-600">
+                <td className="px-5 py-3 text-xs text-slate-500">
                   {[...new Set(s.objects.map(o => o.omsu))].join(', ')}
-                </td>
-                <td className="px-5 py-3 text-xs text-slate-500 max-w-xs">
-                  {s.objects.map(o => o.object_name).join(' · ')}
                 </td>
               </tr>
             ))}
@@ -1205,9 +1276,33 @@ export default function ClosureView() {
   const [loading, setLoading] = useState(true);
   const [histLoad, setHistLoad] = useState(true);
   const [error, setError]     = useState('');
-  const [tab, setTab]         = useState<TabId>('payments');
-  const [mogaeFilter, setMogaeFilter] = useState<string | null>(null);
+  const [tab, setTab]             = useState<TabId>('payments');
+  const [mogaeFilter, setMogaeFilter]   = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<PaymentStatus | null>(null);
+  const [funnelFilter, setFunnelFilter] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  // History counter: track last-seen timestamp to show only new changes as badge
+  const histSeenKey = `closure_hist_seen_${profile?.id ?? 'anon'}`;
+  const [historySeenAt, setHistorySeenAt] = useState<string | null>(() => localStorage.getItem(histSeenKey));
+  // Addresses for РП filter
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  useEffect(() => {
+    supabase.from('addresses').select('"Код УИН","Руководитель проекта"').then(({ data: rows }) => {
+      setAddresses((rows ?? []) as Address[]);
+    });
+  }, []);
+  const addressRpMap = useMemo(() =>
+    new Map(addresses.filter(a => a['Руководитель проекта']).map(a => [a['Код УИН'], a['Руководитель проекта']!])),
+  [addresses]);
+  // Close export menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setShowExportMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
   // Favorites — single source of truth, lifted here so favorites tab stays in sync
   const favKey = `closure_fav_${profile?.id ?? 'anon'}`;
   const [favorites, setFavoritesState] = useState<Set<number>>(() => {
@@ -1256,7 +1351,11 @@ export default function ClosureView() {
 
   useEffect(() => { void load(); void loadChanges(); }, []);
 
-  const handleSaved = () => { void load(); void loadChanges(); };
+  const handleSaved = (updated: ClosureObject) => {
+    // In-place update — no full reload, scroll position preserved
+    setData(prev => prev.map(r => r.id === updated.id ? { ...r, ...updated } : r));
+    void loadChanges();
+  };
 
   const latestDate = useMemo(() =>
     data.length ? data.reduce((mx, r) => r.snapshot_date > mx ? r.snapshot_date : mx, data[0].snapshot_date) : '',
@@ -1289,9 +1388,15 @@ export default function ClosureView() {
   const tableRows = useMemo(() => {
     let rows = latest;
     if (statusFilter) rows = rows.filter(r => r.payment_status === statusFilter);
-    if (mogaeFilter) rows = rows.filter(r => r.mogae_status === mogaeFilter);
+    if (mogaeFilter)  rows = rows.filter(r => r.mogae_status === mogaeFilter);
+    if (funnelFilter) rows = rows.filter(r => getFunnelBlock(r) === funnelFilter);
     return rows;
-  }, [latest, statusFilter, mogaeFilter]);
+  }, [latest, statusFilter, mogaeFilter, funnelFilter]);
+
+  // New history entries count (since last time panel was opened)
+  const newHistoryCount = useMemo(() =>
+    changes.filter(c => !historySeenAt || c.changed_at > historySeenAt).length,
+  [changes, historySeenAt]);
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -1323,14 +1428,42 @@ export default function ClosureView() {
           {canEdit && (
             <button onClick={() => setShowImport(true)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition">
-              <Upload size={15} /> Импорт Excel
+              <Upload size={15} /> Импорт
             </button>
           )}
-          <button onClick={() => setShowHistory(true)}
+          {/* Export dropdown */}
+          {latest.length > 0 && (
+            <div className="relative" ref={exportMenuRef}>
+              <button onClick={() => setShowExportMenu(v => !v)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition">
+                <Download size={15} /> Экспорт <ChevronDown size={13} />
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-2xl border border-slate-200 z-30 min-w-[240px] overflow-hidden">
+                  <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                    Варианты экспорта
+                  </div>
+                  {(['all','paid','partial','not_paid','terminated','contractors','schedule','full'] as ExportVariant[]).map(v => (
+                    <button key={v} onClick={() => { exportClosureObjects(latest, v); setShowExportMenu(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-emerald-50 hover:text-emerald-700 transition flex items-center gap-2">
+                      <Download size={12} className="opacity-50 flex-shrink-0" />
+                      {EXPORT_LABELS[v]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <button onClick={() => {
+            const now = new Date().toISOString();
+            setHistorySeenAt(now);
+            localStorage.setItem(histSeenKey, now);
+            setShowHistory(true);
+          }}
             className="relative flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:text-violet-700 hover:bg-violet-50 rounded-xl transition font-medium border border-slate-200">
             <History size={15} /> История
-            {changes.length > 0 && (
-              <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[9px] font-black bg-violet-500 text-white rounded-full leading-none">{changes.length}</span>
+            {newHistoryCount > 0 && (
+              <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[9px] font-black bg-violet-500 text-white rounded-full leading-none">{newHistoryCount}</span>
             )}
           </button>
           <button onClick={() => { void load(); void loadChanges(); }}
@@ -1370,8 +1503,12 @@ export default function ClosureView() {
           {/* ── TAB: Payments ── */}
           {tab === 'payments' && (
             <div className="space-y-6">
-              {/* Pipeline */}
-              <PipelineSection data={latest} />
+              {/* Pipeline — clickable funnel stages */}
+              <PipelineSection
+                data={latest}
+                activeStage={funnelFilter}
+                onStageClick={stage => { setFunnelFilter(stage); setStatusFilter(null); setMogaeFilter(null); }}
+              />
 
               {/* KPI counts */}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -1459,7 +1596,7 @@ export default function ClosureView() {
                     </div>
                   )}
                 </div>
-                <ObjectsTable rows={tableRows} onEdit={setEditRecord} canEdit={canEdit} favorites={favorites} onToggleFavorite={toggleFavorite} />
+                <ObjectsTable rows={tableRows} onEdit={setEditRecord} canEdit={canEdit} favorites={favorites} onToggleFavorite={toggleFavorite} addressRpMap={addressRpMap} />
               </div>
             </div>
           )}

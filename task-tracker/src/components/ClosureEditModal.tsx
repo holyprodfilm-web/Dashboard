@@ -147,7 +147,7 @@ function labelForValue(field: string, val: string | null | undefined): string {
 interface Props {
   record: ClosureObject;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (updated: ClosureObject) => void;
 }
 
 export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
@@ -294,7 +294,7 @@ export default function ClosureEditModal({ record, onClose, onSaved }: Props) {
     }
 
     setSaving(false);
-    onSaved();
+    onSaved({ ...record, ...updates });
     onClose();
   };
 
